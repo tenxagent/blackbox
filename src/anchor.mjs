@@ -5,6 +5,10 @@
 //   BLACKBOX_NEAR_KEY_FILE=keys/x.json \
 //     node src/anchor.mjs --send --records-url URL    send for real (testnet)
 //   add --network mainnet --i-understand-mainnet       for social.near on mainnet
+//   add --dir <data dir>                               for records.jsonl + checkpoints.json elsewhere than data/
+//
+// The agent id written as "agent" (and used for h_0 when checking) is the agentId in checkpoints.json, so the
+// same script anchors any agent's chain; the AGENT_ID constant is only the fallback for an older file without it.
 //
 // SocialDB contract API (github.com/NearSocial/social-db, commit b4a023d,
 // README "Storing data" and contract/src/api.rs + account.rs):
@@ -88,8 +92,9 @@ export function loadKeyFile(file) {
   return { account, keyPair: kp };
 }
 
-function loadHead(root, seqArg) {
-  const cp = JSON.parse(readFileSync(path.join(root, 'data/checkpoints.json'), 'utf8'));
+const loadCheckpoints = (dataDir) => JSON.parse(readFileSync(path.join(dataDir, 'checkpoints.json'), 'utf8'));
+
+function loadHead(cp, seqArg) {
   if (seqArg === undefined) return cp.final;
   const seq = Number(seqArg);
   const hit = [...cp.checkpoints, cp.final].find((c) => c.seq === seq);
@@ -124,6 +129,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${path.resolve(proces
   const has = (f) => argv.includes(`--${f}`);
   const arg = (n, d) => { const i = argv.indexOf(`--${n}`); return i >= 0 ? argv[i + 1] : d; };
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const dataDir = path.resolve(arg('dir', path.join(root, 'data')));
   const network = arg('network', 'testnet');
   const net = rpc.NETWORKS[network];
   if (!net) { console.error(`unknown network ${network}`); process.exit(2); }
@@ -155,10 +161,12 @@ if (process.argv[1] && import.meta.url === new URL(`file://${path.resolve(proces
     if (!a) { console.log(`no blackbox anchor under ${account} in ${net.socialDb}`); process.exit(1); }
     const written = a.block ? ` (written in block ${a.block} at ${await blockTime(urls, a.block)} by the chain's clock)` : '';
     console.log(`anchored on ${network} (${net.socialDb}) by ${account}: seq ${a.seq} head ${a.head} t ${a.t}${written}`);
-    const lines = splitLines(readFileSync(path.join(root, 'data/records.jsonl'), 'utf8'));
+    const lines = splitLines(readFileSync(path.join(dataDir, 'records.jsonl'), 'utf8'));
     const claims = [{ seq: a.seq, head: a.head }, ...a.anchors.map(x => ({ seq: x.seq, head: x.head }))];
     if (a.anchors.length) console.log(`anchor history: ${a.anchors.map(x => `seq ${x.seq}${x.block ? ` @${x.block}` : ''}`).join(', ')}`);
-    const s = await verifySparse(lines, claims, { agentId: a.agent || AGENT_ID });
+    let localAgent = AGENT_ID;
+    try { localAgent = loadCheckpoints(dataDir).agentId || AGENT_ID; } catch { /* no checkpoints.json: the constant */ }
+    const s = await verifySparse(lines, claims, { agentId: a.agent || localAgent });
     console.log(s.ok ? `local records match the anchor through seq ${s.okThrough} (${claims.length} anchored heads checked); ${s.reason}` : `MISMATCH: ${s.reason}`);
     process.exit(s.ok ? 0 : 1);
   }
@@ -177,7 +185,9 @@ if (process.argv[1] && import.meta.url === new URL(`file://${path.resolve(proces
     process.exit(3);
   }
 
-  const cp = loadHead(root, arg('seq'));
+  const cpDoc = loadCheckpoints(dataDir);
+  const agentId = cpDoc.agentId || AGENT_ID;
+  const cp = loadHead(cpDoc, arg('seq'));
   const recordsUrl = arg('records-url', process.env.BLACKBOX_RECORDS_URL || '');
   // history kept under anchors/<seq>: this head, the current latest anchor if it has no per-seq key yet, and --also seq:head,...
   // (a one-time backfill of anchors written before per-seq keys existed). Every one must verify against the local records first.
@@ -185,10 +195,10 @@ if (process.argv[1] && import.meta.url === new URL(`file://${path.resolve(proces
   const prev = await readAnchor(urls, net.socialDb, account).catch(() => null);
   if (prev?.head && !prev.anchors.some(x => x.seq === prev.seq)) history[prev.seq] = prev.head;
   for (const pair of String(arg('also', '')).split(',').filter(Boolean)) { const [sq, hd] = pair.split(':'); history[Number(sq)] = hd; }
-  const recLines = splitLines(readFileSync(path.join(root, 'data/records.jsonl'), 'utf8'));
-  const hv = await verifySparse(recLines, Object.entries(history).map(([sq, hd]) => ({ seq: Number(sq), head: hd })), { agentId: AGENT_ID });
+  const recLines = splitLines(readFileSync(path.join(dataDir, 'records.jsonl'), 'utf8'));
+  const hv = await verifySparse(recLines, Object.entries(history).map(([sq, hd]) => ({ seq: Number(sq), head: hd })), { agentId });
   if (!hv.ok) { console.error(`refusing: an anchor in the history does not match the local records: ${hv.reason}`); process.exit(6); }
-  const data = anchorData({ account, head: cp.head, seq: cp.seq, t: cp.t, recordsUrl, anchors: history });
+  const data = anchorData({ account, head: cp.head, seq: cp.seq, t: cp.t, recordsUrl, agent: agentId, anchors: history });
   const argsJson = JSON.stringify({ data });
 
   // Read-only lookups: storage registration, minimum balance, nonce, block hash.
@@ -225,7 +235,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${path.resolve(proces
   console.log(`signer       ${account}  [${keyNote}]`);
   console.log(`contract     ${net.socialDb}.set  gas ${GAS / TGAS} Tgas  deposit ${formatNear(deposit)} NEAR`);
   console.log(`storage      ${bal ? `registered, available ${formatNear(bal.available)} NEAR` : `not registered: first write must attach the minimum ${formatNear(bounds.min)} NEAR`}`);
-  console.log(`anchoring    seq ${cp.seq}  head ${cp.head}  t ${cp.t}`);
+  console.log(`anchoring    seq ${cp.seq}  head ${cp.head}  t ${cp.t}  agent ${agentId}`);
   console.log(`args         ${argsJson}`);
   console.log(`tx context   ${ctxNote}`);
   console.log(`signed tx    ${signed.signedBytes.length} bytes, tx hash ${signed.hashBase58}`);

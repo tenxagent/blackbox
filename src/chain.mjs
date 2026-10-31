@@ -24,7 +24,8 @@ import { canon, isCanonicalLine } from './canon.mjs';
 
 export const VERSION = 'blackbox:v1:';
 // CAIP-10 account id of the agent wallet on Robinhood Chain (chain id 4663),
-// lowercased so the string has one spelling.
+// lowercased so the string has one spelling. The fallback when no config is given: `build` takes the agentId from
+// blackbox.config.json (or --config), and every reader takes it from checkpoints.json.
 export const AGENT_ID = 'eip155:4663:0x00731cd9e0bc7cad1b54f85187b09b942cd3be04';
 export const DEFAULT_EVERY = 256;
 
@@ -204,9 +205,22 @@ async function cli(argv) {
     return i >= 0 ? argv[i + 1] : dflt;
   };
   const cmd = argv[0];
-  const recordsPath = path.resolve(arg('records', path.join(root, 'data/records.jsonl')));
-  const cpPath = path.resolve(arg('checkpoints', path.join(root, 'data/checkpoints.json')));
-  const headsPath = path.resolve(arg('heads', path.join(root, 'data/heads.txt')));
+  // --dir <data dir> holds records.jsonl, checkpoints.json and heads.txt (default data/); --records etc. override one file
+  const dir = path.resolve(arg('dir', path.join(root, 'data')));
+  const recordsPath = path.resolve(arg('records', path.join(dir, 'records.jsonl')));
+  const cpPath = path.resolve(arg('checkpoints', path.join(dir, 'checkpoints.json')));
+  const headsPath = path.resolve(arg('heads', path.join(dir, 'heads.txt')));
+  // agentId for h_0: --config <file> (default blackbox.config.json at the repo root), else the AGENT_ID constant
+  const agentIdOf = () => {
+    const file = arg('config') ? path.resolve(arg('config')) : path.join(root, 'blackbox.config.json');
+    if (!fs.existsSync(file)) {
+      if (arg('config')) throw new Error(`config not found: ${file}`);
+      return AGENT_ID;
+    }
+    const id = JSON.parse(fs.readFileSync(file, 'utf8')).agentId;
+    if (typeof id !== 'string' || !id) throw new Error(`${file}: "agentId" is missing`);
+    return id;
+  };
 
   if (cmd === 'build') {
     const text = fs.readFileSync(recordsPath, 'utf8');
@@ -214,7 +228,7 @@ async function cli(argv) {
     const every = Number(arg('every', DEFAULT_EVERY));
     const nonCanon = lines.findIndex((l) => !isCanonicalLine(l));
     if (nonCanon >= 0) throw new Error(`line ${nonCanon + 1} of ${recordsPath} is not canonical JSON; re-run src/export.mjs`);
-    const res = await buildLines(lines, { every });
+    const res = await buildLines(lines, { every, agentId: agentIdOf() });
     const doc = {
       version: 1,
       scheme: 'leaf=sha256(line); h0=sha256("blackbox:v1:"+agentId); h_i=sha256(h_{i-1}||leaf_i)',
@@ -228,6 +242,7 @@ async function cli(argv) {
     };
     fs.writeFileSync(cpPath, JSON.stringify(doc, null, 1) + '\n');
     fs.writeFileSync(headsPath, res.heads.join('\n') + '\n');
+    console.log(`agent:       ${res.agentId}`);
     console.log(`records:     ${lines.length}`);
     console.log(`genesis h_0: ${res.genesis}`);
     console.log(`final head:  h_${res.final.seq} = ${res.final.head}  (t ${res.final.t})`);
@@ -240,6 +255,7 @@ async function cli(argv) {
     const lines = splitLines(fs.readFileSync(recordsPath, 'utf8'));
     const cp = JSON.parse(fs.readFileSync(cpPath, 'utf8'));
     let failed = false;
+    console.log(`agent:            ${cp.agentId}`);
     if (fs.existsSync(headsPath)) {
       const heads = splitLines(fs.readFileSync(headsPath, 'utf8'));
       const r = await verifyLines(lines, heads, { agentId: cp.agentId });
@@ -269,8 +285,8 @@ async function cli(argv) {
     return;
   }
 
-  console.log('usage: node src/chain.mjs build [--every 256]');
-  console.log('       node src/chain.mjs verify [--records data/records.jsonl]');
+  console.log('usage: node src/chain.mjs build [--dir data] [--config blackbox.config.json] [--every 256]');
+  console.log('       node src/chain.mjs verify [--dir data] [--records data/records.jsonl]');
   console.log('       node src/chain.mjs tamper --seq N [--out /tmp/blackbox-tampered.jsonl]');
   process.exit(cmd ? 1 : 0);
 }

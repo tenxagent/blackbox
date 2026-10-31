@@ -1,0 +1,86 @@
+{
+ "filterVersion": "minimal-agent-filter-v1",
+ "source": {
+  "name": "ledger.jsonl",
+  "linesRead": 18,
+  "bytesRead": 3392,
+  "sha256": "d784348abcc9559cd6ddbb4210d11a9fe275d84c85e60ea03ae3176274f581ca",
+  "note": "sha256 of the first linesRead complete lines of the source ledger, newlines included"
+ },
+ "records": 12,
+ "firstT": "2026-11-01T09:00:00.000Z",
+ "lastT": "2026-11-01T10:30:00.000Z",
+ "txRecords": 3,
+ "dropped": 6,
+ "droppedByReason": {
+  "privacy:engine-personal": 1,
+  "privacy:operator-wallet": 1,
+  "telemetry": 3,
+  "unparseable": 1
+ },
+ "keptByCategory": {
+  "application": 1,
+  "error": 1,
+  "lifecycle": 2,
+  "money": 3,
+  "refusal": 2,
+  "sim": 2,
+  "unclassified": 1
+ },
+ "keptByEngineType": {
+  "bridge|sim": 1,
+  "core|rebalance_plan": 1,
+  "core|start": 1,
+  "core|stop": 1,
+  "signup|application": 1,
+  "swap|decision": 4,
+  "swap|error": 1,
+  "swap|refused": 1,
+  "swap|sim": 1
+ },
+ "droppedByEngineType": {
+  "(none)|(none)  [unparseable]": 1,
+  "core|heartbeat  [telemetry]": 2,
+  "personal|decision  [privacy]": 1,
+  "watch|balance  [privacy]": 1,
+  "watch|price_tick  [telemetry]": 1
+ },
+ "strippedFields": {
+  "apiKey": 1,
+  "book": 1,
+  "email": 1,
+  "form": 1,
+  "project": 1,
+  "resp": 1,
+  "session": 1,
+  "stack~path": 1
+ },
+ "unclassifiedTypes": {
+  "rebalance_plan": 1
+ },
+ "rules": {
+  "privacyEngines": [
+   "personal"
+  ],
+  "excludedAddresses": "rows that contain a 0x-address whose sha256(lowercase address) is listed in excluded-address-hashes.json (1 hashes)",
+  "telemetryTypes": {
+   "heartbeat": "liveness ping",
+   "*_tick": "market price observation"
+  },
+  "sensitiveFieldName": "/token|key|secret|email|cookie|auth|password|session/i",
+  "publicChainFieldNames": [
+   "token",
+   "tokenId"
+  ],
+  "bulkyFieldNames": [
+   "resp",
+   "book"
+  ],
+  "signupRowsKeep": [
+   "t",
+   "engine",
+   "type",
+   "action"
+  ]
+ }
+}

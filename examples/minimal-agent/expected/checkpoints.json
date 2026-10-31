@@ -1,0 +1,25 @@
+{
+ "version": 1,
+ "scheme": "leaf=sha256(line); h0=sha256(\"blackbox:v1:\"+agentId); h_i=sha256(h_{i-1}||leaf_i)",
+ "agentId": "eip155:31337:0xa9e17a9e17a9e17a9e17a9e17a9e17a9e17a9e17",
+ "genesis": "241ae4fb9d372684f5d931b3021724836aa8f0ace1e7c59e234ee3e2cd51d20e",
+ "rule": {
+  "every": 256,
+  "hourly": true
+ },
+ "records": 12,
+ "recordsSha256": "6d41a357d4aedc2f0aa63efb8025bf998e1bc0e2933a231e604870d5c01b2628",
+ "final": {
+  "seq": 12,
+  "t": "2026-11-01T10:30:00.000Z",
+  "head": "6f1a9eb6b0ae170c1218871007204bd01e8cf9db320355c965c3233577edc398"
+ },
+ "checkpoints": [
+  {
+   "seq": 8,
+   "t": "2026-11-01T09:55:00.000Z",
+   "head": "c87d13e79ea40ed32ebaae3e0ab1e687a0f5fb57316c034af9ce95818361fc6a",
+   "why": "hour"
+  }
+ ]
+}

@@ -1,0 +1,60 @@
+{
+ "comment": "Export rules for claude-10x, read by src/export.mjs (and agentId by src/chain.mjs build). A rule change that changes the output needs a new filterVersion and a re-anchor.",
+ "agentId": "eip155:4663:0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+ "filterVersion": "blackbox-filter-v2",
+ "telemetryTypes": {
+  "beat": "heartbeat",
+  "liq_beat": "heartbeat",
+  "mm_snap": "market snapshot",
+  "mm_true": "market snapshot",
+  "seen": "market observation",
+  "opp": "market observation (spread seen, nothing done)",
+  "opp_end": "market observation (spread gone)",
+  "candidate": "mint scanner observation",
+  "followup": "mint scanner observation",
+  "drop": "drop calendar observation",
+  "drop_recheck": "drop calendar observation",
+  "dexgap": "DEX price-gap observation",
+  "stream_open": "websocket transport",
+  "stream_close": "websocket transport",
+  "stream_stats": "websocket transport",
+  "poll_err": "RPC transport error (not a decision)",
+  "liq_near": "third-party position near liquidation (observation; alerts are kept)",
+  "kleos_paper": "aggregate paper-trading statistics (no individual trade)",
+  "noctrive_post": "copy of a third-party X post",
+  "vanta_post": "copy of a third-party X post"
+ },
+ "categories": {
+  "money": ["live", "tx", "lp_mint", "lp_exit", "lp_recenter", "free_mint", "fill", "stub_offer"],
+  "refusal": ["skip", "fire_refused", "flock_skip", "mintarm_skip", "stub_pause", "arm_gave_up", "qcwatch_end"],
+  "alert": ["alert"],
+  "sim": ["flock_sim", "poke_dry_done", "crank_dry_done", "mintarm_dry_done", "crank_rehearsal_done"],
+  "paper": ["paper", "ladder", "metaculus_forecast"],
+  "arming": ["armed", "arm_wait", "mintarm_armed", "mintarm_signed", "mintarm_moved", "mintarm_t60", "mintarm_build", "mint_sell_wait", "crank_armed", "crank_signed", "crank_remote", "poke_armed"],
+  "lifecycle": ["start", "metaculus_watch_start", "merkl_radar_start"],
+  "application": ["wl", "wl_apply"]
+ },
+ "privacyEngines": {
+  "kleos-side": "operator side-wallet activity, not the agent"
+ },
+ "excludedAddressHashesFile": "data/excluded-address-hashes.json",
+ "reduceEngines": {
+  "apply": ["t", "engine", "type", "action"]
+ },
+ "sensitiveFieldName": "/token|key|secret|email|cookie|auth|password|session/i",
+ "publicChainFieldNames": ["token", "tokenId", "tokenIds", "tokens"],
+ "bulkyFieldNames": {
+  "snap": "order-book dump",
+  "book": "order-book dump",
+  "listings": "order-book dump",
+  "offers": "order-book dump",
+  "tail": "process output (paths, stack traces)",
+  "resp": "raw API response",
+  "text": "verbatim third-party post (the url is kept)",
+  "host": "the operator's server address"
+ },
+ "txHashFields": ["tx", "hash"],
+ "txHashListFields": ["txs"],
+ "redactLocalPaths": true,
+ "localPathRoots": ["root", "home", "tmp", "var", "etc", "usr", "opt", "run"]
+}
