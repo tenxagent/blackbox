@@ -4,9 +4,11 @@ A flight recorder for an autonomous AI agent's money decisions. It turns the
 agent's decision log into a SHA-256 hash chain, anchors the chain head on NEAR,
 and links every money record to its real transaction on Robinhood Chain. After a
 head is anchored, nobody (not the agent and not its operator) can edit, drop or
-reorder an earlier record without the check failing against the anchored heads
-(see Limits for the one gap left: SocialDB keys are owner-writable until the
-append-only contract lands).
+reorder an earlier record without the check failing against the anchored heads.
+The heads live in an **append-only registry contract on NEAR mainnet**
+([`08035588…6e8a`](https://nearblocks.io/address/08035588c459e514c632061fb4862fde62297571f1e44716e01bcc9913986e8a)):
+it has no access keys and no delete or edit method, so once a head is in it, nobody can
+change or remove it. Its code hash equals the reproducible build in [`contract/`](contract/).
 
 **Live demo: https://tenxagent.github.io/blackbox/web/**. It recomputes the whole chain
 in your browser and checks it against the head the agent anchored on NEAR mainnet.
@@ -239,6 +241,8 @@ shows `chain OK up to seq 12 of 12` (the empty `account` skips the NEAR check; t
 | `src/near/borsh.mjs` | Hand-written Borsh for `Transaction` (V0), actions, `SignedTransaction`; a reader for the same subset. |
 | `src/near/tx.mjs` | Sign a transaction: ed25519 over `sha256(borsh(tx))`; live nonce and block hash lookup. |
 | `src/near/rpc.mjs` | NEAR JSON-RPC: `query` (`view_account`, `view_access_key`, `call_function`), `block`, `send_tx`, `broadcast_tx_commit`, `tx`. |
+| `contract/` | The append-only registry: Rust, no SDK and no crates, 17,142-byte MVP wasm, 25 native tests, a wasm inspector, reproducible build and the deploy-and-lock procedure (see its README). |
+| `src/registry.mjs` | Pure helpers to build registry args and parse/page its views; the web page uses it. |
 | `src/fckey.mjs` | Adds the function-call access key the cycle signs with (`social.near.set` only, gas cap); `--list` prints an account's keys. |
 | `src/cycle.mjs` | Operator cycle: export → build → verify → RH proof → tests → commit → anchor on mainnet (pinned `records_url`); dry by default. |
 | `src/anchor.mjs` | Builds the SocialDB `set` call; dry by default; `--send` needs a key file; `--read` checks an anchor. |
@@ -411,16 +415,17 @@ testnet. The source is https://github.com/NearSocial/social-db, commit `b4a023d`
 
 ## Limits (stated plainly)
 
-- **SocialDB keys are writable by their owner.** Since 2026-10-31 every anchored head is
-  kept under `anchors/<seq>` and all of them are checked, so re-anchoring an edited history
-  would leave the old heads failing, and every write is a permanent public NEAR transaction
-  (nearblocks shows the full history of the account). But the owner key could still delete
-  or overwrite those keys, and a reader who only looks at the current SocialDB state would
-  not notice. The fix is an append-only registry contract on NEAR (anchor only accepts a
-  higher seq, never rewrites), planned for the hackathon window. Until then the guarantee
-  rests on the per-seq keys plus NEAR's public transaction history. The heads for seq 1269
-  and 1325 were first written in txs `4D8t2VYs…` and `FDaCch6X…` and copied under
-  `anchors/` in tx [`FQEa6vWa…`](https://nearblocks.io/txns/FQEa6vWapT6voP2cjde6HUCieNxjzkLBaH4rL49p9ZAV).
+- **The registry is the source of truth; SocialDB is a readable mirror.** SocialDB keys stay
+  writable by their owner, which is why the append-only registry exists. It was deployed and
+  locked in one atomic tx on 2026-10-31
+  ([`8zAHMf6t…`](https://nearblocks.io/txns/8zAHMf6tcTSRmqq4ZX9JZq6qesxysPfitXaGLCvij5W6):
+  DeployContract + `new()` + DeleteKey). The anchoring job calls `anchor` with a function-call
+  key that can do nothing else. Heads 1269, 1325 and 1375 were first anchored in SocialDB (txs
+  `4D8t2VYs…`, `FDaCch6X…`, `GgZf7QeM…`) and written into the registry at 22:00Z the same day,
+  in order. Their registry times are when they entered the registry, not when they were first
+  anchored. What the registry cannot fix: a key that holds the `anchor` permission could push
+  `seq` to the maximum and block further anchors from that account (it could still not change
+  or remove anything already there). Recovery would be a new account, disclosed.
 - **Anchoring proves ordering and non-rewrite since the anchor time, not truthfulness.**
   The ledger is written by the agent's own scripts. Black box shows that a record has
   not changed since its head was anchored. It does not show that the record's

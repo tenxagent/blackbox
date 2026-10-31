@@ -7,6 +7,11 @@
 
 import { splitLines, verifySparse } from '../src/chain.mjs';
 import { isCanonicalLine } from '../src/canon.mjs';
+import { readAllAnchors } from '../src/registry.mjs';
+
+// the append-only registry (contract/; deployed + locked on mainnet 2026-10-31: DeployContract + new() + DeleteKey in one tx)
+const REGISTRY = '08035588c459e514c632061fb4862fde62297571f1e44716e01bcc9913986e8a';
+const REGISTRY_CODE_HASH = 'HHWM5HdMW4A513pxMmXGRt168Uh4PeDiBcCps8DG34Vk';
 
 // the agent's own NEAR account that anchors the head (live on mainnet since 2026-10-31)
 const DEFAULT_ANCHOR_ACCOUNT = '00537bf24e164c18f3512de1040d34c88a11f37976a3ef6d4de673dc9cef6590';
@@ -127,6 +132,25 @@ export async function readNearAnchor(network, account) {
   return { head: String(leaf(node.head)), seq: Number(leaf(node.seq)), t: leaf(node.t), agent: leaf(node.agent), records_url: leaf(node.records_url), block: r.block_height, writeBlock, writtenAt, anchors };
 }
 
+// Registry: is it locked (no access keys) and running the reviewed code? Then every head it holds for `account`.
+export async function readRegistry(network, account) {
+  const net = NEAR[network];
+  const rpcCall = async (method, params) => {
+    const res = await fetch(net.rpc, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 'bb', method, params }) });
+    const j = await res.json();
+    if (j.error || j.result?.error) throw new Error(JSON.stringify(j.error || j.result.error).slice(0, 200));
+    return j.result;
+  };
+  const acc = await rpcCall('query', { request_type: 'view_account', finality: 'final', account_id: REGISTRY });
+  const keys = (await rpcCall('query', { request_type: 'view_access_key_list', finality: 'final', account_id: REGISTRY })).keys;
+  const view = async (method, args) => {
+    const r = await rpcCall('query', { request_type: 'call_function', finality: 'final', account_id: REGISTRY, method_name: method, args_base64: btoa(JSON.stringify(args)) });
+    return JSON.parse(new TextDecoder().decode(new Uint8Array(r.result)));
+  };
+  const anchors = await readAllAnchors(view, account);
+  return { codeHash: acc.code_hash, codeOk: acc.code_hash === REGISTRY_CODE_HASH, keyCount: keys.length, anchors };
+}
+
 // ---------------------------------------------------------------- page
 if (typeof document !== 'undefined') main();
 
@@ -197,6 +221,22 @@ async function main() {
     document.getElementById('agent-id').textContent = checkpoints.agentId;
     renderList(lines);
     if (account) await checkAnchor();
+    if (account && network === 'mainnet') await checkRegistry();
+  }
+
+  async function checkRegistry() {
+    setStatus('registry-status', 'busy', `reading the registry ${short(REGISTRY, 8)} on mainnet…`);
+    try {
+      const r = await readRegistry(network, account);
+      if (!r.codeOk || r.keyCount !== 0) { setStatus('registry-status', 'bad', `registry is not the locked reviewed contract: ${r.keyCount} access key(s), code hash ${r.codeHash}`); return; }
+      if (!r.anchors.length) { setStatus('registry-status', 'bad', `the locked registry holds no heads for ${account}.`); return; }
+      const s = await verifySparse(state.lines, r.anchors.map((x) => ({ seq: x.seq, head: x.head })), { agentId: checkpoints.agentId });
+      const span = `${r.anchors.length} heads (seq ${r.anchors[0].seq} → ${r.anchors[r.anchors.length - 1].seq}), first written ${r.anchors[0].time}, last ${r.anchors[r.anchors.length - 1].time} by the contract's clock`;
+      if (s.ok) setStatus('registry-status', 'ok', `Registry locked (0 access keys, code hash ${short(REGISTRY_CODE_HASH, 6)} = contract/ build) holds ${span}. All match these records. ${s.reason}.`);
+      else setStatus('registry-status', 'bad', `Registry holds ${span}, but these records do not match: ${s.reason}.`);
+    } catch (e) {
+      setStatus('registry-status', 'bad', `registry read failed: ${e.message}`);
+    }
   }
 
   async function checkAnchor() {
