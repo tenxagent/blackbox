@@ -37,14 +37,15 @@ and plain browser JavaScript. Run all commands from the repository root.
 
 | # | Do | See |
 |---|----|-----|
-| 1 | `node test/run.mjs` | One `PASS`/`FAIL`/`SKIP` line per test (55 tests), ending in `54 passed, 0 failed, 1 skipped`. The one `SKIP` is the "operator check", which needs the private ledger (expected for judges; on the operator's machine it is `55 passed`). The 7 network tests (NEAR testnet reads, Robinhood Chain receipts) print `SKIP` instead of `FAIL` when the network is unreachable; `node test/run.mjs --offline` skips them on purpose. |
-| 2 | `node src/chain.mjs verify` | `heads.txt: OK, all 1183 heads match` and `checkpoints.json: OK through seq 1183 (122 claims)`. Exit code 0. |
+| 1 | `node test/run.mjs` | One `PASS`/`FAIL`/`SKIP` line per test (56 tests), ending in `55 passed, 0 failed, 1 skipped`. The one `SKIP` is the "operator check", which needs the private ledger (expected for judges; on the operator's machine it is `56 passed`). The 7 network tests (NEAR testnet reads, Robinhood Chain receipts) print `SKIP` instead of `FAIL` when the network is unreachable; `node test/run.mjs --offline` skips them on purpose. |
+| 2 | `node src/chain.mjs verify` | `heads.txt: OK, all 1269 heads match` and `checkpoints.json: OK through seq 1269 (126 claims)`. Exit code 0. |
 | 3 | `node src/chain.mjs tamper --seq 500 --out /tmp/bb.jsonl` then `node src/chain.mjs verify --records /tmp/bb.jsonl` | One character of record 500 is changed. Verify prints `FIRST MISMATCH at seq 500: head differs; record content changed` and `chain OK up to seq 496; ... something in seq 497..504 changed`. Exit code 1. |
-| 4 | `node src/rh-proof.mjs --n 5 --seed 1` | 5 tx records checked on Robinhood Chain, e.g. `verified seq 727 0xf832cbd29906… sell_to_bid block 100993170 2026-10-29T15:04:11.000Z lag 5s`. `--all` checks all 58 and gives `verified: 55 · not_on_rh: 3`. |
+| 4 | `node src/rh-proof.mjs --n 5 --seed 1` | 5 tx records checked on Robinhood Chain, e.g. `verified seq 727 0xf832cbd29906… sell_to_bid block 100993170 2026-10-29T15:04:11.000Z lag 5s`. `--all` checks all 63 and gives `verified: 60 · not_on_rh: 3`. |
 | 5 | `node src/anchor.mjs` | Dry run on NEAR testnet. It builds and signs a SocialDB `set` transaction with a throwaway key, prints the JSON args, the deposit and the tx hash, then `DRY RUN: nothing was sent`. |
-| 6 | `python3 -m http.server 8000`, then open `http://localhost:8000/web/` | The page recomputes the chain in the browser and shows `chain OK up to seq 1183 of 1183`, then the last 50 decisions in plain words, with explorer links for transactions. |
+| 6 | `python3 -m http.server 8000`, then open `http://localhost:8000/web/` | The page recomputes the chain in the browser and shows `chain OK up to seq 1269 of 1269`, then the last 50 decisions in plain words, with explorer links for transactions. |
 | 7 | `node src/chain.mjs tamper --seq 500 --out web/tampered.jsonl`, then open `http://localhost:8000/web/?records=tampered.jsonl` | The page turns red: `chain OK up to seq 496 (tampered.jsonl); first mismatch in seq 497..504`. You can also load any edited copy with the file picker. |
-| 8 | Open `http://localhost:8000/web/?network=testnet&account=<anchoring account>` once a head has been anchored | The page reads `<account>/blackbox` from SocialDB through NEAR RPC and reports whether the local records match the anchored head. No account has anchored yet (see Limits). |
+| 8 | `node src/anchor.mjs --read --network mainnet --account 00537bf24e164c18f3512de1040d34c88a11f37976a3ef6d4de673dc9cef6590` | Reads the agent's anchor from `social.near` and checks it against the local records: `anchored on mainnet (social.near) by 00537bf2…6590: seq 1269 head 30ef92d0…833d …` then `local records match the anchor through seq 1269; all claims match`. |
+| 9 | Open `http://localhost:8000/web/?network=mainnet&account=00537bf24e164c18f3512de1040d34c88a11f37976a3ef6d4de673dc9cef6590` | The same check in the browser: the page reads `<account>/blackbox` from SocialDB through NEAR RPC and reports whether the loaded records match the anchored head. |
 
 The full pipeline for the operator, who has the private ledger:
 
@@ -53,7 +54,8 @@ node src/export.mjs          # ledger.jsonl -> data/records.jsonl + data/manifes
 node src/chain.mjs build     # -> data/checkpoints.json + data/heads.txt
 node test/run.mjs            # all tests, including the byte-for-byte rebuild check
 node src/rh-proof.mjs --all  # -> data/rh-proof.json
-BLACKBOX_NEAR_KEY_FILE=keys/anchor.json node src/anchor.mjs --send --records-url <public URL of data/records.jsonl>
+BLACKBOX_NEAR_KEY_FILE=keys/anchor.json node src/anchor.mjs --network mainnet --send --i-understand-mainnet \
+  --records-url https://raw.githubusercontent.com/tenxagent/blackbox/<data commit>/data/records.jsonl
 python3 -m http.server 8000  # open http://localhost:8000/web/
 ```
 
@@ -71,10 +73,10 @@ python3 -m http.server 8000  # open http://localhost:8000/web/
 | `src/near/rpc.mjs` | NEAR JSON-RPC: `query` (`view_account`, `view_access_key`, `call_function`), `block`, `send_tx`, `broadcast_tx_commit`, `tx`. |
 | `src/anchor.mjs` | Builds the SocialDB `set` call; dry by default; `--send` needs a key file; `--read` checks an anchor. |
 | `web/index.html`, `web/verify.js` | Static verifier page. No libraries, no CDNs. |
-| `data/records.jsonl` | 1183 exported decision records, one canonical JSON line each. |
+| `data/records.jsonl` | 1269 exported decision records, one canonical JSON line each. |
 | `data/manifest.json` | Filter counts, the rules, and the sha256 of the source ledger prefix. |
 | `data/excluded-address-hashes.json` | SHA-256 hashes of the operator's personal wallet addresses that the privacy filter excludes (addresses withheld). |
-| `data/checkpoints.json`, `data/heads.txt` | Genesis, 120 checkpoints, the final head; all 1184 heads (h_0..h_1183). |
+| `data/checkpoints.json`, `data/heads.txt` | Genesis, 124 checkpoints, the final head; all 1270 heads (h_0..h_1269). |
 | `data/rh-proof.json` | Output of `node src/rh-proof.mjs --all`. |
 | `test/*.test.mjs`, `test/run.mjs` | Self-tests; `node test/run.mjs` prints PASS/FAIL/SKIP per test. |
 
@@ -224,7 +226,7 @@ testnet. The source is https://github.com/NearSocial/social-db, commit `b4a023d`
   becomes the account's storage balance.
 - Each anchor overwrites the same five keys:
   ```json
-  {"<account>":{"blackbox":{"head":"<64 hex>","seq":"1183","t":"2026-10-31T12:47:06.282Z","agent":"eip155:4663:0x0073…be04","records_url":"<url>"}}}
+  {"<account>":{"blackbox":{"head":"<64 hex>","seq":"1269","t":"2026-10-31T16:56:50.927Z","agent":"eip155:4663:0x0073…be04","records_url":"<url>"}}}
   ```
 - Reading back: `get({keys:["<account>/blackbox/**"]})` through `call_function`. This needs no wallet; the web page does it straight from the browser.
 - `--send` refuses to run unless all of these are set:
@@ -238,12 +240,19 @@ testnet. The source is https://github.com/NearSocial/social-db, commit `b4a023d`
   The ledger is written by the agent's own scripts. Black box shows that a record has
   not changed since its head was anchored. It does not show that the record's
   `why` is honest, or that the agent logged everything.
-- **Nothing is anchored yet.** There is no funded NEAR account. The anchor
-  transaction is built, signed and decoded locally, and the RPC reads are tested on
-  testnet, but `--send` has never run. Until the first anchor, the operator could
-  rewrite the whole history, and `checkpoints.json` and `heads.txt` are only claims
-  made by this repository.
-- **The RH proof covers money records with a tx hash only** (58 of 1,183 records).
+- **Anchored since 2026-10-31T19:20:04Z only** (NEAR block 222462176). First mainnet anchor: seq 1269, head
+  `30ef92d0…833d`, SocialDB tx
+  [`4D8t2VYs…XMuA`](https://nearblocks.io/txns/4D8t2VYs2PfJU74qvr2KPEWshmGTa9f2AxYeT847XMuA),
+  signed by the agent's own NEAR account
+  `00537bf24e164c18f3512de1040d34c88a11f37976a3ef6d4de673dc9cef6590` (an implicit
+  account the agent funded itself: 1 USDG on Robinhood Chain → 0.2199 NEAR via NEAR
+  Intents 1Click, record seq 1268). That account only anchors; it is not the
+  hackathon payout account. The anchored `records_url` is pinned to commit `423290c`.
+  Anything before the anchor time could have been rewritten before it; from then on
+  an edit to records 1–1269 fails the check. The first try (tx `D76hGzr2…`) panicked
+  "Not enough storage balance" because the minimum deposit only covers registration;
+  `depositFor()` now adds the data storage.
+- **The RH proof covers money records with a tx hash only** (63 of 1,269 records).
   - Off-chain decisions (OpenSea offers, refusals, simulations, paper trades) cannot be
     proven to have happened. They can only be proven unedited after anchoring.
   - Three BNB Chain txs are not checked.
