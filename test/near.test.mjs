@@ -13,6 +13,7 @@ import { base58Encode, base58Decode, keyPairFromString, keyPairFromSeed, generat
 import { serializeTransaction, decodeTransaction, decodeSignedTransaction, serializeSignedTransaction } from '../src/near/borsh.mjs';
 import { signTransaction } from '../src/near/tx.mjs';
 import * as rpc from '../src/near/rpc.mjs';
+import { addFunctionCallKeyAction, nearToYocto, SOCIAL_METHODS } from '../src/fckey.mjs';
 
 const hex = (b) => Buffer.from(b).toString('hex');
 const unhex = (s) => new Uint8Array(Buffer.from(s, 'hex'));
@@ -28,6 +29,23 @@ const NET = 'testnet';
 const url = () => rpc.rpcUrl(NET);
 
 export const tests = [
+  {
+    name: 'fckey: function-call AddKey (social.near set only, 0.25 NEAR gas allowance) round-trips through borsh',
+    fn() {
+      const kp = keyPairFromSeed(new Uint8Array(32).fill(7)), nk = keyPairFromSeed(new Uint8Array(32).fill(9));
+      assert.equal(nearToYocto('0.25'), 250000000000000000000000n);
+      assert.equal(nearToYocto('1'), 10n ** 24n);
+      assert.throws(() => nearToYocto('1e3'));
+      const action = addFunctionCallKeyAction(nk.publicKey, 'social.near', SOCIAL_METHODS, nearToYocto('0.25'));
+      const tx = { signerId: kp.implicitAccountId, publicKey: kp.publicKey, nonce: 5n, receiverId: kp.implicitAccountId, blockHash: base58Decode(BLOCK_HASH_B58), actions: [action] };
+      const { tx: back, rest } = decodeTransaction(serializeTransaction(tx));
+      assert.equal(rest.length, 0);
+      const ak = back.actions[0].addKey.accessKey;
+      assert.equal(hex(back.actions[0].addKey.publicKey), hex(nk.publicKey));
+      assert.equal(ak.nonce, 0n);
+      assert.deepEqual(ak.permission, { functionCall: { allowance: 250000000000000000000000n, receiverId: 'social.near', methodNames: ['set'] } });
+    },
+  },
   {
     name: 'base58: vector strings decode to the bytes inside the near-api-js tx hex',
     fn() {

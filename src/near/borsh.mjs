@@ -151,6 +151,15 @@ function readPublicKey(r) {
   return r.take(32);
 }
 
+function readAccessKey(r) {
+  const nonce = r.u64();
+  const tag = r.u8();
+  if (tag === 1) return { nonce, permission: 'FullAccess' };
+  if (tag !== 0) throw new Error(`decode: unsupported access key permission ${tag}`);
+  const allowance = r.u8() ? r.u128() : null;
+  return { nonce, permission: { functionCall: { allowance, receiverId: r.string(), methodNames: r.vec(x => x.string()) } } };
+}
+
 function readAction(r) {
   const tag = r.u8();
   switch (tag) {
@@ -159,6 +168,7 @@ function readAction(r) {
     case 2: return { functionCall: { methodName: r.string(), args: r.bytes(), gas: r.u64(), deposit: r.u128() } };
     case 3: return { transfer: { deposit: r.u128() } };
     case 4: return { stake: { stake: r.u128(), publicKey: readPublicKey(r) } };
+    case 5: return { addKey: { publicKey: readPublicKey(r), accessKey: readAccessKey(r) } };
     case 6: return { deleteKey: { publicKey: readPublicKey(r) } };
     case 7: return { deleteAccount: { beneficiaryId: r.string() } };
     default: throw new Error(`decode: unsupported action tag ${tag}`);

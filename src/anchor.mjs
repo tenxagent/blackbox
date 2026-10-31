@@ -166,7 +166,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${path.resolve(proces
   // Read-only lookups: storage registration, minimum balance, nonce, block hash.
   const { value: bounds } = await rpc.callFunction(urls, net.socialDb, 'storage_balance_bounds', {});
   const { value: bal } = await rpc.callFunction(urls, net.socialDb, 'storage_balance_of', { account_id: account });
-  const deposit = depositFor(bal, bounds.min, Buffer.byteLength(argsJson));
+  let deposit = depositFor(bal, bounds.min, Buffer.byteLength(argsJson));
   let nonce, blockHash, ctxNote;
   try {
     const ctx = await txContext(urls, account, keyPair);
@@ -180,6 +180,16 @@ if (process.argv[1] && import.meta.url === new URL(`file://${path.resolve(proces
     ctxNote = `no access key on chain for ${account} (expected for a dry run); nonce 1, live block ${b.header.height}`;
   }
 
+  // A function-call key (src/fckey.mjs) cannot attach a deposit: write with 0 while the storage balance covers the data,
+  // else refuse and say how to top up with the full-access key.
+  if (send && ctxNote.includes('FunctionCall')) {
+    const bytesCost = BigInt(Buffer.byteLength(argsJson)) * 10n ** 19n;
+    if (!bal || BigInt(bal.available) < bytesCost) {
+      console.error(`refusing: signing with a function-call key, which cannot attach a deposit, and SocialDB storage available ${bal ? formatNear(bal.available) : 0} NEAR < ${formatNear(bytesCost)} NEAR needed. Top up once with the full-access key (any anchor with it attaches the deposit).`);
+      process.exit(5);
+    }
+    deposit = 0n;
+  }
   const tx = { signerId: account, publicKey: keyPair.publicKey, nonce, receiverId: net.socialDb, blockHash, actions: [setAction(data, deposit)] };
   const signed = signTransaction(tx, keyPair);
 
