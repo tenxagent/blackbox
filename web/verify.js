@@ -5,7 +5,7 @@
 // Everything loaded here (records, checkpoints, RPC replies) is treated as
 // data: it is written into the page with textContent, never as HTML.
 
-import { splitLines, verifySparse, AGENT_ID } from '../src/chain.mjs';
+import { splitLines, verifySparse } from '../src/chain.mjs';
 import { isCanonicalLine } from '../src/canon.mjs';
 
 // the agent's own NEAR account that anchors the head (live on mainnet since 2026-10-31)
@@ -155,19 +155,23 @@ async function main() {
   document.getElementById('account').value = account;
   document.getElementById('network').value = network;
 
+  // ?records=<path> loads another copy of the records (e.g. a tampered one); ?checkpoints=<path> another agent's
+  // checkpoints (e.g. ../examples/minimal-agent/expected/checkpoints.json). Same origin, relative paths only.
+  const relative = (p) => (p && !/^[a-z]+:|^\/\//i.test(p) ? p : null);
+  const recordsParam = params.get('records');
+  const checkpointsParam = relative(params.get('checkpoints'));
+  const checkpointsPath = checkpointsParam ?? '../data/checkpoints.json';
   let checkpoints, proof = null;
   try {
-    checkpoints = await (await fetch('../data/checkpoints.json', { cache: 'no-store' })).json();
+    checkpoints = await (await fetch(checkpointsPath, { cache: 'no-store' })).json();
   } catch (e) {
-    setStatus('chain-status', 'bad', `could not load ../data/checkpoints.json (${e.message}). Serve the repo root: python3 -m http.server 8000, then open http://localhost:8000/web/`);
+    setStatus('chain-status', 'bad', `could not load ${checkpointsPath} (${e.message}). Serve the repo root: python3 -m http.server 8000, then open http://localhost:8000/web/`);
     return;
   }
   try { proof = await (await fetch('../data/rh-proof.json', { cache: 'no-store' })).json(); } catch { /* optional */ }
   const proofByTx = new Map((proof?.results || []).map((p) => [p.tx, p]));
 
-  // ?records=<path> loads another copy (same origin, relative path only), e.g. a tampered one.
-  const recordsParam = params.get('records');
-  const recordsPath = recordsParam && !/^[a-z]+:|^\/\//i.test(recordsParam) ? recordsParam : '../data/records.jsonl';
+  const recordsPath = relative(recordsParam) ?? '../data/records.jsonl';
   const text = await (await fetch(recordsPath, { cache: 'no-store' })).text();
   const state = { lines: [], anchor: null };
   await runCheck(text, recordsPath.replace(/^\.\.\//, ''));
@@ -200,7 +204,7 @@ async function main() {
     try {
       const a = await readNearAnchor(network, account);
       if (!a) { setStatus('near-status', 'bad', `no Black box anchor stored under ${account} on ${network}.`); return; }
-      if (a.agent && a.agent !== AGENT_ID) { setStatus('near-status', 'bad', `anchor is for another agent: ${a.agent}`); return; }
+      if (a.agent && a.agent !== checkpoints.agentId) { setStatus('near-status', 'bad', `anchor is for another agent: ${a.agent} (these checkpoints are for ${checkpoints.agentId})`); return; }
       const claims = [{ seq: a.seq, head: a.head }, ...a.anchors.map((x) => ({ seq: x.seq, head: x.head }))];
       const s = await verifySparse(state.lines, claims, { agentId: checkpoints.agentId });
       const when = a.writtenAt ? `written on chain ${a.writtenAt} (block ${a.writeBlock})` : `agent-claimed time ${a.t}`;
@@ -216,7 +220,7 @@ async function main() {
     ev.preventDefault();
     const acc = document.getElementById('account').value.trim();
     const netw = document.getElementById('network').value;
-    const keep = recordsParam ? `&records=${encodeURIComponent(recordsParam)}` : '';
+    const keep = (recordsParam ? `&records=${encodeURIComponent(recordsParam)}` : '') + (checkpointsParam ? `&checkpoints=${encodeURIComponent(checkpointsParam)}` : '');
     location.search = `?network=${encodeURIComponent(netw)}&account=${encodeURIComponent(acc)}${keep}`;
   });
   if (!account) setStatus('near-status', 'idle', 'No NEAR account set. Enter the account that anchors the head (or add ?network=mainnet&account=<id> to the URL).');

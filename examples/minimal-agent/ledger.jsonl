@@ -1,0 +1,19 @@
+{"t":"2026-11-01T09:00:00.000Z","engine":"core","type":"start","note":"agent started with a 0.05 ETH budget and a 1% slippage cap"}
+{"t":"2026-11-01T09:00:30.000Z","engine":"core","type":"heartbeat","uptimeS":30}
+{"t":"2026-11-01T09:01:00.000Z","engine":"watch","type":"price_tick","pair":"ETH/USDC","bid":2500.1,"ask":2500.6}
+{"t":"2026-11-01T09:02:00.000Z","engine":"swap","type":"sim","action":"swap","pair":"ETH/USDC","amountIn":"0.010","quoteOut":"25.00","gasUsd":0.02,"go":true}
+{"t":"2026-11-01T09:02:04.000Z","engine":"swap","type":"decision","action":"approve","chain":"local","token":"0x7e577e577e577e577e577e577e577e577e577e57","spender":"0xdec0dec0dec0dec0dec0dec0dec0dec0dec0dec0","amount":"10000000000000000","tx":"0xcafecafecafecafecafecafecafecafecafecafecafecafecafecafecafecafe","why":"exact amount, no unlimited approval"}
+{"t":"2026-11-01T09:02:05.000Z","engine":"swap","type":"decision","action":"swap","chain":"local","pair":"ETH/USDC","amountIn":"0.010","minOut":"24.75","router":"0xdec0dec0dec0dec0dec0dec0dec0dec0dec0dec0","tx":"0xf00df00df00df00df00df00df00df00df00df00df00df00df00df00df00df00d","apiKey":"FAKE-KEY-0000","resp":{"status":"0x1","gasUsed":"121000"},"why":"spread 0.4% above fees"}
+{"t":"2026-11-01T09:15:00.000Z","engine":"swap","type":"refused","pair":"ETH/USDC","slippagePct":3.1,"why":"slippage 3.1% is above the 1% cap"}
+{"t":"2026-11-01T09:20:00.000Z","engine":"swap","type":"error","msg":"RPC timeout after 10 s","stack":"Error: RPC timeout after 10 s\n    at send (/home/user/agent/src/rpc.js:42:7)\n    at async main (file:///home/user/agent/src/main.js:10:3)","docs":"https://example.com/home/user/rpc-timeouts"}
+{"t":"2026-11-01T09:30:00.000Z","engine":"personal","type":"decision","action":"swap","tx":"0xd00dd00dd00dd00dd00dd00dd00dd00dd00dd00dd00dd00dd00dd00dd00dd00d","note":"the operator's own trade from a shared script, not the agent's"}
+{"t":"2026-11-01T09:40:00.000Z","engine":"watch","type":"balance","wallet":"0x0bad0bad0bad0bad0bad0bad0bad0bad0bad0bad","eth":"1.20","note":"operator wallet balance, not the agent's"}
+{"t":"2026-11-01T09:45:00.000Z","engine":"signup","type":"application","action":"applied","project":"example-dao","email":"agent@example.com","form":{"handle":"@example_agent","answers":["yes","42"]}}
+{"t":"2026-11-01T09:55:00.000Z","engine":"swap","type":"decision","action":"hold","pair":"ETH/USDC","spreadPct":0.05,"why":"spread 0.05% is below fees"}
+{"t":"2026-11-01T10:00:30.000Z","engine":"core","type":"heartbeat","uptimeS":3630}
+{"t":"2026-11-01T10:05:00.000Z","engine":"core","ty
+{"t":"2026-11-01T10:06:00.000Z","engine":"core","type":"rebalance_plan","why":"ETH share is above 60%; plan to sell 0.005 ETH within the hour"}
+{"t":"2026-11-01T10:10:00.000Z","engine":"swap","type":"decision","action":"swap","chain":"local","pair":"USDC/ETH","amountIn":"12.50","txs":["0xBEEFBEEFBEEFBEEFBEEFBEEFBEEFBEEFBEEFBEEFBEEFBEEFBEEFBEEFBEEFBEEF","0xc0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0dec0de"],"session":{"id":"s-1","token":"FAKE.SESSION.TOKEN"},"book":{"bids":[[2499.9,1.2]],"asks":[[2500.4,0.8]]},"why":"rebalance: sell half the plan"}
+{"t":"2026-11-01T10:20:00.000Z","engine":"bridge","type":"sim","action":"bridge","amountIn":"0.005","feeUsd":0.9,"go":false,"why":"bridge fee is 7% of the amount"}
+{"t":"2026-11-01T10:30:00.000Z","engine":"core","type":"stop","why":"daily run finished"}
+{"t":"2026-11-01T10:31:00.000Z","engine":"core","type":"heart

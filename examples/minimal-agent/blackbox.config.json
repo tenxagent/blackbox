@@ -1,0 +1,33 @@
+{
+ "comment": "Export rules for a made-up swap agent. Everything in this folder is invented: addresses, tx hashes, keys and paths.",
+ "agentId": "eip155:31337:0xa9e17a9e17a9e17a9e17a9e17a9e17a9e17a9e17",
+ "filterVersion": "minimal-agent-filter-v1",
+ "telemetryTypes": {
+  "heartbeat": "liveness ping",
+  "*_tick": "market price observation"
+ },
+ "categories": {
+  "money": [{ "type": "decision", "action": "swap" }, { "type": "decision", "action": "approve" }],
+  "refusal": ["refused", { "type": "decision", "action": "hold" }],
+  "sim": ["sim"],
+  "error": ["error"],
+  "lifecycle": ["start", "stop"],
+  "application": ["application"]
+ },
+ "privacyEngines": {
+  "personal": "the operator's own trades, not the agent's"
+ },
+ "excludedAddressHashesFile": "excluded-address-hashes.json",
+ "reduceEngines": {
+  "signup": ["t", "engine", "type", "action"]
+ },
+ "sensitiveFieldName": "/token|key|secret|email|cookie|auth|password|session/i",
+ "publicChainFieldNames": ["token", "tokenId"],
+ "bulkyFieldNames": {
+  "resp": "raw RPC response",
+  "book": "order-book dump"
+ },
+ "txHashFields": ["tx"],
+ "txHashListFields": ["txs"],
+ "redactLocalPaths": true
+}

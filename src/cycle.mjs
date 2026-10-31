@@ -8,6 +8,7 @@
 // The NEAR key ({"account_id","private_key"}) is read from stdin and handed to anchor.mjs on its stdin (key file "-"): never on disk.
 // It anchors whenever the seq anchored on chain is behind the committed head, so a failed anchor is retried on the next run.
 // The ledger path comes from BLACKBOX_LEDGER (operator-only, like src/export.mjs). Refuses on a dirty working tree.
+// --config <file> (default blackbox.config.json) is passed to export.mjs and chain.mjs build: the filter rules and the agentId.
 import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -16,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SEND = process.argv.includes('--send');
+const CONFIG = path.resolve(process.argv.includes('--config') ? process.argv[process.argv.indexOf('--config') + 1] : path.join(ROOT, 'blackbox.config.json'));
 const LEDGER = process.env.BLACKBOX_LEDGER || '/root/claude-10x/ledger.jsonl';
 const REPO_RAW = 'https://raw.githubusercontent.com/tenxagent/blackbox';
 const DATA = ['data/records.jsonl', 'data/manifest.json', 'data/checkpoints.json', 'data/heads.txt', 'data/rh-proof.json'];
@@ -32,16 +34,16 @@ if (SEND && !/^[0-9a-f]{64}$|\.near$/.test(account ?? '')) fail('stdin is not a 
 const before = records(path.join(ROOT, 'data'));
 if (!SEND) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bb-cycle-'));
-  run(['src/export.mjs', '--ledger', LEDGER, '--out', tmp]);
+  run(['src/export.mjs', '--config', CONFIG, '--ledger', LEDGER, '--out', tmp]);
   const after = records(tmp); fs.rmSync(tmp, { recursive: true, force: true });
   console.log(`dry: ${after - before} new records (${before} → ${after}); --send would commit them and anchor the new head`);
   process.exit(0);
 }
 
-run(['src/export.mjs', '--ledger', LEDGER]);
+run(['src/export.mjs', '--config', CONFIG, '--ledger', LEDGER]);
 const after = records(path.join(ROOT, 'data'));
 if (git('status', '--porcelain')) {
-  run(['src/chain.mjs', 'build']);
+  run(['src/chain.mjs', 'build', '--config', CONFIG]);
   run(['src/chain.mjs', 'verify']);
   run(['src/rh-proof.mjs', '--all']);
   const t = spawnSync('node', ['test/run.mjs'], { cwd: ROOT, encoding: 'utf8' });

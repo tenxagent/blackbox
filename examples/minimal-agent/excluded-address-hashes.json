@@ -1,0 +1,6 @@
+{
+ "comment": "the made-up operator's personal wallet (sha256 of the lowercase address), not the agent's",
+ "sha256": [
+  "a3f2c74f5738b1190b11818e32c828f2df1a2f88630781e866f6ba048e1898e3"
+ ]
+}
