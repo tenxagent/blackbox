@@ -37,10 +37,17 @@ import * as rpc from './near/rpc.mjs';
 export const GAS = 100n * TGAS;
 const KEY_RE = /^[a-zA-Z0-9_.-]{1,256}$/;
 
-export function anchorData({ account, head, seq, t, recordsUrl, agent = AGENT_ID }) {
+// anchors = { <seq>: <head> } written under blackbox/anchors/<seq>. SocialDB `set` merges keys, so earlier anchors stay readable
+// next to the latest one and a verifier checks every one of them (2026-10-31: before this, each anchor overwrote the last).
+export function anchorData({ account, head, seq, t, recordsUrl, agent = AGENT_ID, anchors = {} }) {
   if (!/^[0-9a-f]{64}$/.test(head)) throw new Error('head must be 64 lowercase hex characters');
   if (!Number.isInteger(seq) || seq < 0) throw new Error('seq must be a non-negative integer');
-  const data = { [account]: { blackbox: { head, seq: String(seq), t: String(t ?? ''), agent, records_url: String(recordsUrl ?? '') } } };
+  const node = { head, seq: String(seq), t: String(t ?? ''), agent, records_url: String(recordsUrl ?? '') };
+  for (const [s, h] of Object.entries(anchors)) {
+    if (!/^[0-9a-f]{64}$/.test(h) || !/^\d+$/.test(String(s))) throw new Error(`bad anchor ${s}: ${h}`);
+    (node.anchors ??= {})[String(s)] = h;
+  }
+  const data = { [account]: { blackbox: node } };
   checkSocialData(data);
   return data;
 }
@@ -96,10 +103,19 @@ export async function readAnchor(urls, socialDb, account) {
   const node = value?.[account]?.blackbox;
   if (!node) return null;
   const leaf = (x) => (x && typeof x === 'object' ? x[''] : x);
+  const anchors = Object.entries(node.anchors && typeof node.anchors === 'object' ? node.anchors : {})
+    .filter(([k]) => /^\d+$/.test(k)).map(([k, v]) => ({ seq: Number(k), head: leaf(v), block: v?.[':block'] ?? null }))
+    .filter(a => typeof a.head === 'string').sort((x, y) => x.seq - y.seq);
   return {
     head: leaf(node.head), seq: Number(leaf(node.seq)), t: leaf(node.t), agent: leaf(node.agent),
-    records_url: leaf(node.records_url), block: node.head?.[':block'] ?? node[':block'] ?? null, readAtBlock: blockHeight,
+    records_url: leaf(node.records_url), block: node.head?.[':block'] ?? node[':block'] ?? null, readAtBlock: blockHeight, anchors,
   };
+}
+
+// The chain's own time for a block height (the "anchored at" a reader can trust; the t field is only what the agent claims).
+export async function blockTime(urls, height) {
+  const b = await rpc.block(urls, { block_id: Number(height) });
+  return new Date(Number(BigInt(b.header.timestamp) / 1000000n)).toISOString();
 }
 
 // ---------------------------------------------------------------- CLI
@@ -137,10 +153,13 @@ if (process.argv[1] && import.meta.url === new URL(`file://${path.resolve(proces
     if (!account) { console.error('--read needs --account <near account id>'); process.exit(2); }
     const a = await readAnchor(urls, net.socialDb, account);
     if (!a) { console.log(`no blackbox anchor under ${account} in ${net.socialDb}`); process.exit(1); }
-    console.log(`anchored on ${network} (${net.socialDb}) by ${account}: seq ${a.seq} head ${a.head} t ${a.t}${a.block ? ` (block ${a.block})` : ''}`);
+    const written = a.block ? ` (written in block ${a.block} at ${await blockTime(urls, a.block)} by the chain's clock)` : '';
+    console.log(`anchored on ${network} (${net.socialDb}) by ${account}: seq ${a.seq} head ${a.head} t ${a.t}${written}`);
     const lines = splitLines(readFileSync(path.join(root, 'data/records.jsonl'), 'utf8'));
-    const s = await verifySparse(lines, [{ seq: a.seq, head: a.head }], { agentId: a.agent || AGENT_ID });
-    console.log(s.ok ? `local records match the anchor through seq ${s.okThrough}; ${s.reason}` : `MISMATCH: ${s.reason}`);
+    const claims = [{ seq: a.seq, head: a.head }, ...a.anchors.map(x => ({ seq: x.seq, head: x.head }))];
+    if (a.anchors.length) console.log(`anchor history: ${a.anchors.map(x => `seq ${x.seq}${x.block ? ` @${x.block}` : ''}`).join(', ')}`);
+    const s = await verifySparse(lines, claims, { agentId: a.agent || AGENT_ID });
+    console.log(s.ok ? `local records match the anchor through seq ${s.okThrough} (${claims.length} anchored heads checked); ${s.reason}` : `MISMATCH: ${s.reason}`);
     process.exit(s.ok ? 0 : 1);
   }
 
@@ -160,7 +179,16 @@ if (process.argv[1] && import.meta.url === new URL(`file://${path.resolve(proces
 
   const cp = loadHead(root, arg('seq'));
   const recordsUrl = arg('records-url', process.env.BLACKBOX_RECORDS_URL || '');
-  const data = anchorData({ account, head: cp.head, seq: cp.seq, t: cp.t, recordsUrl });
+  // history kept under anchors/<seq>: this head, the current latest anchor if it has no per-seq key yet, and --also seq:head,...
+  // (a one-time backfill of anchors written before per-seq keys existed). Every one must verify against the local records first.
+  const history = { [cp.seq]: cp.head };
+  const prev = await readAnchor(urls, net.socialDb, account).catch(() => null);
+  if (prev?.head && !prev.anchors.some(x => x.seq === prev.seq)) history[prev.seq] = prev.head;
+  for (const pair of String(arg('also', '')).split(',').filter(Boolean)) { const [sq, hd] = pair.split(':'); history[Number(sq)] = hd; }
+  const recLines = splitLines(readFileSync(path.join(root, 'data/records.jsonl'), 'utf8'));
+  const hv = await verifySparse(recLines, Object.entries(history).map(([sq, hd]) => ({ seq: Number(sq), head: hd })), { agentId: AGENT_ID });
+  if (!hv.ok) { console.error(`refusing: an anchor in the history does not match the local records: ${hv.reason}`); process.exit(6); }
+  const data = anchorData({ account, head: cp.head, seq: cp.seq, t: cp.t, recordsUrl, anchors: history });
   const argsJson = JSON.stringify({ data });
 
   // Read-only lookups: storage registration, minimum balance, nonce, block hash.

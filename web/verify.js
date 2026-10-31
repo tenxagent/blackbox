@@ -104,18 +104,27 @@ export async function checkRecords(text, checkpoints) {
 
 export async function readNearAnchor(network, account) {
   const net = NEAR[network];
-  const args = btoa(JSON.stringify({ keys: [`${account}/blackbox/**`] }));
-  const res = await fetch(net.rpc, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 'bb', method: 'query', params: { request_type: 'call_function', finality: 'final', account_id: net.socialDb, method_name: 'get', args_base64: args } }),
-  });
-  const j = await res.json();
-  if (j.error || j.result?.error) throw new Error(JSON.stringify(j.error || j.result.error).slice(0, 200));
-  const value = JSON.parse(new TextDecoder().decode(new Uint8Array(j.result.result)));
+  // with_block_height: every leaf comes back as { "": value, ":block": height of the block that wrote it } (chain time, not the
+  // agent's claimed t). anchors/<seq> holds every anchored head, so all of them are checked, not just the latest.
+  const args = btoa(JSON.stringify({ keys: [`${account}/blackbox/**`], options: { with_block_height: true } }));
+  const rpcCall = async (method, params) => {
+    const res = await fetch(net.rpc, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 'bb', method, params }) });
+    const j = await res.json();
+    if (j.error || j.result?.error) throw new Error(JSON.stringify(j.error || j.result.error).slice(0, 200));
+    return j.result;
+  };
+  const r = await rpcCall('query', { request_type: 'call_function', finality: 'final', account_id: net.socialDb, method_name: 'get', args_base64: args });
+  const value = JSON.parse(new TextDecoder().decode(new Uint8Array(r.result)));
   const node = value?.[account]?.blackbox;
   if (!node) return null;
-  return { head: String(node.head), seq: Number(node.seq), t: node.t, agent: node.agent, records_url: node.records_url, block: j.result.block_height };
+  const leaf = (x) => (x && typeof x === 'object' ? x[''] : x);
+  const anchors = Object.entries(node.anchors && typeof node.anchors === 'object' ? node.anchors : {})
+    .filter(([k]) => /^\d+$/.test(k)).map(([k, v]) => ({ seq: Number(k), head: String(leaf(v)), block: v?.[':block'] ?? null }))
+    .sort((x, y) => x.seq - y.seq);
+  const writeBlock = node.head?.[':block'] ?? null;
+  let writtenAt = null;
+  if (writeBlock) { const b = await rpcCall('block', { block_id: Number(writeBlock) }); writtenAt = new Date(Number(BigInt(b.header.timestamp) / 1000000n)).toISOString(); }
+  return { head: String(leaf(node.head)), seq: Number(leaf(node.seq)), t: leaf(node.t), agent: leaf(node.agent), records_url: leaf(node.records_url), block: r.block_height, writeBlock, writtenAt, anchors };
 }
 
 // ---------------------------------------------------------------- page
@@ -192,9 +201,12 @@ async function main() {
       const a = await readNearAnchor(network, account);
       if (!a) { setStatus('near-status', 'bad', `no Black box anchor stored under ${account} on ${network}.`); return; }
       if (a.agent && a.agent !== AGENT_ID) { setStatus('near-status', 'bad', `anchor is for another agent: ${a.agent}`); return; }
-      const s = await verifySparse(state.lines, [{ seq: a.seq, head: a.head }], { agentId: checkpoints.agentId });
-      if (s.ok) setStatus('near-status', 'ok', `NEAR anchor matches: seq ${a.seq} head ${short(a.head, 8)} (anchored ${a.t}, read at block ${a.block}). Records 1..${a.seq} cannot have been rewritten since then. ${s.reason}.`);
-      else setStatus('near-status', 'bad', `NEAR anchor says seq ${a.seq} head ${short(a.head, 8)}, but ${s.reason}.`);
+      const claims = [{ seq: a.seq, head: a.head }, ...a.anchors.map((x) => ({ seq: x.seq, head: x.head }))];
+      const s = await verifySparse(state.lines, claims, { agentId: checkpoints.agentId });
+      const when = a.writtenAt ? `written on chain ${a.writtenAt} (block ${a.writeBlock})` : `agent-claimed time ${a.t}`;
+      const hist = a.anchors.length ? ` ${a.anchors.length} anchored heads in its history (seq ${a.anchors.map((x) => x.seq).join(', ')}), all checked.` : '';
+      if (s.ok) setStatus('near-status', 'ok', `NEAR anchor matches: seq ${a.seq} head ${short(a.head, 8)}, ${when}.${hist} Records 1..${a.seq} match what was anchored. ${s.reason}.`);
+      else setStatus('near-status', 'bad', `NEAR anchors (latest seq ${a.seq}) do not match these records: ${s.reason}.`);
     } catch (e) {
       setStatus('near-status', 'bad', `NEAR read failed: ${e.message}`);
     }

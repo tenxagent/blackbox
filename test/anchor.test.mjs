@@ -13,6 +13,17 @@ const run = (args, env = {}) => spawnSync(process.execPath, ['src/anchor.mjs', .
 
 export const tests = [
   {
+    name: 'anchor: anchorData keeps a per-seq history under anchors/<seq> and rejects bad entries',
+    fn() {
+      const h = (c) => c.repeat(64);
+      const d = anchorData({ account: 'a.near', head: h('a'), seq: 3, t: 'x', recordsUrl: 'u', anchors: { 1: h('b'), 3: h('a') } });
+      assert.deepEqual(d['a.near'].blackbox.anchors, { 1: h('b'), 3: h('a') });
+      assert.equal(anchorData({ account: 'a.near', head: h('a'), seq: 3 })['a.near'].blackbox.anchors, undefined);
+      assert.throws(() => anchorData({ account: 'a.near', head: h('a'), seq: 3, anchors: { 1: 'nothex' } }));
+      assert.throws(() => anchorData({ account: 'a.near', head: h('a'), seq: 3, anchors: { x: h('b') } }));
+    },
+  },
+  {
     name: 'SocialDB data: leaves are strings (seq as a string), keys use allowed characters',
     fn() {
       const d = anchorData({ account: 'agent.testnet', head: HEAD, seq: 1183, t: '2026-10-31T12:47:06.282Z', recordsUrl: 'https://example.org/r.jsonl' });
