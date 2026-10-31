@@ -4,7 +4,9 @@ A flight recorder for an autonomous AI agent's money decisions. It turns the
 agent's decision log into a SHA-256 hash chain, anchors the chain head on NEAR,
 and links every money record to its real transaction on Robinhood Chain. After a
 head is anchored, nobody (not the agent and not its operator) can edit, drop or
-reorder an earlier record without the check failing.
+reorder an earlier record without the check failing against the anchored heads
+(see Limits for the one gap left: SocialDB keys are owner-writable until the
+append-only contract lands).
 
 **Live demo: https://tenxagent.github.io/blackbox/web/**. It recomputes the whole chain
 in your browser and checks it against the head the agent anchored on NEAR mainnet.
@@ -249,11 +251,15 @@ testnet. The source is https://github.com/NearSocial/social-db, commit `b4a023d`
 - The first write by a new account must attach at least `storage_balance_bounds().min`.
   That is `2000 bytes × 10^19 yocto/byte = 0.02 NEAR` (read live in a test). It
   becomes the account's storage balance.
-- Each anchor overwrites the same five keys:
+- Each anchor updates the five "latest" keys and adds one key per anchored head
+  under `anchors/<seq>` (SocialDB `set` merges keys, so earlier heads stay):
   ```json
-  {"<account>":{"blackbox":{"head":"<64 hex>","seq":"1269","t":"2026-10-31T16:56:50.927Z","agent":"eip155:4663:0x0073…be04","records_url":"<url>"}}}
+  {"<account>":{"blackbox":{"head":"<64 hex>","seq":"1375","t":"<agent-claimed time>","agent":"eip155:4663:0x0073…be04","records_url":"<url>","anchors":{"1375":"<64 hex>"}}}}
   ```
-- Reading back: `get({keys:["<account>/blackbox/**"]})` through `call_function`. This needs no wallet; the web page does it straight from the browser.
+- Reading back: `get({keys:["<account>/blackbox/**"], options:{with_block_height:true}})` through
+  `call_function`. Every leaf then carries the height of the block that wrote it, so readers show
+  the chain's own write time next to the agent-claimed `t`, and check every head under `anchors/`.
+  This needs no wallet; the web page does it straight from the browser.
 - `--send` refuses to run unless all of these are set:
   - `BLACKBOX_NEAR_KEY_FILE` points to a key file (`{"account_id","private_key"}`, kept out of git; `keys/` is ignored);
   - `--records-url` is given;
@@ -261,6 +267,16 @@ testnet. The source is https://github.com/NearSocial/social-db, commit `b4a023d`
 
 ## Limits (stated plainly)
 
+- **SocialDB keys are writable by their owner.** Since 2026-10-31 every anchored head is
+  kept under `anchors/<seq>` and all of them are checked, so re-anchoring an edited history
+  would leave the old heads failing, and every write is a permanent public NEAR transaction
+  (nearblocks shows the full history of the account). But the owner key could still delete
+  or overwrite those keys, and a reader who only looks at the current SocialDB state would
+  not notice. The fix is an append-only registry contract on NEAR (anchor only accepts a
+  higher seq, never rewrites), planned for the hackathon window. Until then the guarantee
+  rests on the per-seq keys plus NEAR's public transaction history. The heads for seq 1269
+  and 1325 were first written in txs `4D8t2VYs…` and `FDaCch6X…` and copied under
+  `anchors/` in tx [`FQEa6vWa…`](https://nearblocks.io/txns/FQEa6vWapT6voP2cjde6HUCieNxjzkLBaH4rL49p9ZAV).
 - **Anchoring proves ordering and non-rewrite since the anchor time, not truthfulness.**
   The ledger is written by the agent's own scripts. Black box shows that a record has
   not changed since its head was anchored. It does not show that the record's
