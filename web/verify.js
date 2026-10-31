@@ -8,6 +8,9 @@
 import { splitLines, verifySparse, AGENT_ID } from '../src/chain.mjs';
 import { isCanonicalLine } from '../src/canon.mjs';
 
+// the agent's own NEAR account that anchors the head (live on mainnet since 2026-10-31)
+const DEFAULT_ANCHOR_ACCOUNT = '00537bf24e164c18f3512de1040d34c88a11f37976a3ef6d4de673dc9cef6590';
+
 export const RH_EXPLORER_TX = 'https://robinhoodchain.blockscout.com/tx/';
 export const NEAR = {
   testnet: { rpc: 'https://test.rpc.fastnear.com', socialDb: 'v1.social08.testnet', explorer: 'https://testnet.nearblocks.io/address/' },
@@ -133,8 +136,9 @@ function setStatus(id, state, text) {
 
 async function main() {
   const params = new URLSearchParams(location.search);
-  const network = NEAR[params.get('network')] ? params.get('network') : 'testnet';
-  const account = params.get('account') || '';
+  // defaults = the agent's live mainnet anchor (first anchored 2026-10-31), so the hosted page checks it with one click
+  const network = NEAR[params.get('network')] ? params.get('network') : 'mainnet';
+  const account = params.has('account') ? params.get('account') : DEFAULT_ANCHOR_ACCOUNT;
   document.getElementById('account').value = account;
   document.getElementById('network').value = network;
 
@@ -199,7 +203,7 @@ async function main() {
     const keep = recordsParam ? `&records=${encodeURIComponent(recordsParam)}` : '';
     location.search = `?network=${encodeURIComponent(netw)}&account=${encodeURIComponent(acc)}${keep}`;
   });
-  if (!account) setStatus('near-status', 'idle', 'No NEAR account set. Enter the account that anchors the head (or add ?network=testnet&account=<id> to the URL).');
+  if (!account) setStatus('near-status', 'idle', 'No NEAR account set. Enter the account that anchors the head (or add ?network=mainnet&account=<id> to the URL).');
 
   function renderList(lines) {
     const list = document.getElementById('decisions');
