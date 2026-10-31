@@ -60,11 +60,13 @@ export function setAction(data, deposit = 0n, gas = GAS) {
   return { functionCall: { methodName: 'set', args: new TextEncoder().encode(JSON.stringify({ data })), gas, deposit } };
 }
 
-// Deposit needed for this write: the minimum storage balance when the account
-// is not registered in SocialDB yet, else 0 while enough storage is available.
+// Deposit needed for this write. A new account pays the minimum storage balance
+// AND the data: the minimum is used up by the registration itself (mainnet
+// 2026-10-31, tx D76hGzr2…: a first set with only the minimum panicked "Not
+// enough storage balance"). A registered account pays 0 while enough is available.
 export function depositFor(storageBalance, minBalance, dataBytes) {
-  if (!storageBalance) return BigInt(minBalance);
   const need = BigInt(dataBytes) * 3n * 10n ** 19n; // rough upper bound: 3x the JSON size at 10^19 yocto/byte
+  if (!storageBalance) return BigInt(minBalance) + need;
   return BigInt(storageBalance.available) >= need ? 0n : need;
 }
 

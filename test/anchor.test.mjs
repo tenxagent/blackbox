@@ -25,7 +25,7 @@ export const tests = [
   {
     name: 'deposit: minimum storage balance on first write, 0 once registered with room',
     fn() {
-      assert.equal(depositFor(null, '20000000000000000000000', 300), 20000000000000000000000n);
+      assert.equal(depositFor(null, '20000000000000000000000', 300), 20000000000000000000000n + 300n * 3n * 10n ** 19n);
       assert.equal(depositFor({ total: '2e22', available: '19000000000000000000000' }, '20000000000000000000000', 300), 0n);
       assert.equal(depositFor({ total: '1', available: '0' }, '20000000000000000000000', 300), 300n * 3n * 10n ** 19n);
     },
