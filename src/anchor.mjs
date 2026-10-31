@@ -211,7 +211,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${path.resolve(proces
   // A function-call key (src/fckey.mjs) cannot attach a deposit: write with 0 while the storage balance covers the data,
   // else refuse and say how to top up with the full-access key.
   if (send && ctxNote.includes('FunctionCall')) {
-    const bytesCost = BigInt(Buffer.byteLength(argsJson)) * 10n ** 19n;
+    const bytesCost = BigInt(Buffer.byteLength(argsJson)) * 3n * 10n ** 19n;   // same 3x bound as depositFor (SocialDB per-node overhead)
     if (!bal || BigInt(bal.available) < bytesCost) {
       console.error(`refusing: signing with a function-call key, which cannot attach a deposit, and SocialDB storage available ${bal ? formatNear(bal.available) : 0} NEAR < ${formatNear(bytesCost)} NEAR needed. Top up once with the full-access key (any anchor with it attaches the deposit).`);
       process.exit(5);
