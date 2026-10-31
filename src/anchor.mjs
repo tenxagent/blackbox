@@ -121,7 +121,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${path.resolve(proces
       console.error('refusing to send: set BLACKBOX_NEAR_KEY_FILE to a key file {"account_id","private_key"} (keep it outside git; keys/ is ignored)');
       process.exit(3);
     }
-    if (!existsSync(kf)) { console.error(`refusing to send: key file ${kf} not found`); process.exit(3); }
+    if (!(kf === "-" || existsSync(kf))) { console.error(`refusing to send: key file ${kf} not found`); process.exit(3); }
     if (network === 'mainnet' && !has('i-understand-mainnet')) {
       console.error('refusing to send on mainnet without --i-understand-mainnet (this spends real NEAR)');
       process.exit(3);
