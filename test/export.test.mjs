@@ -2,7 +2,7 @@ import { assert, Skip } from './lib.mjs';
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
-import { classify, exportText, addressHash, loadExcludedHashes, ADDRESS_IN_TEXT, SENSITIVE_NAME, PUBLIC_CHAIN_NAMES, BULKY_NAMES } from '../src/export.mjs';
+import { classify, exportText, addressHash, loadExcludedHashes, redact, ADDRESS_IN_TEXT, SENSITIVE_NAME, PUBLIC_CHAIN_NAMES, BULKY_NAMES } from '../src/export.mjs';
 import { isCanonicalLine } from '../src/canon.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -16,6 +16,15 @@ function walkKeys(v, f, path = '') {
 }
 
 export const tests = [
+  {
+    name: 'privacy: local paths inside strings are redacted, URLs are kept (filter v2)',
+    fn() {
+      const [r, st] = redact({ err: 'at f (file:///root/x/a.mjs:7:2) wrote /tmp/b.json', url: 'https://site.com/home/page', n: 1 });
+      assert.equal(r.err, 'at f (<path>:7:2) wrote <path>');
+      assert.equal(r.url, 'https://site.com/home/page');
+      assert.deepEqual(st, ['err~path']);
+    },
+  },
   {
     name: 'privacy: kleos-side rows are dropped',
     fn() {

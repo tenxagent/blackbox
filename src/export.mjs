@@ -51,7 +51,8 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { canon } from './canon.mjs';
 
-export const FILTER_VERSION = 'blackbox-filter-v1';
+export const FILTER_VERSION = 'blackbox-filter-v2';   // v2 = v1 + local paths inside strings redacted; records 1-1321 are byte-identical
+const LOCAL_PATH = /(?<![\w.:\/-])(?:file:\/\/)?\/(?:root|home|tmp|var|etc|usr|opt|run)\/[^\s"'),:]*/g;   // not inside a URL or word
 
 // Observation and transport rows: dropped (step 3).
 export const TELEMETRY_TYPES = {
@@ -143,6 +144,12 @@ function isPublicChainValue(v) {
 export function redact(value, path = '', stripped = []) {
   if (Array.isArray(value)) {
     return [value.map((v, i) => redact(v, `${path}[${i}]`, stripped)[0]), stripped];
+  }
+  // v2 (2026-10-31): a local path inside a string (e.g. a stack trace in an error row) becomes "<path>"; the field is kept
+  if (typeof value === 'string') {
+    const r = value.replace(LOCAL_PATH, '<path>');
+    if (r !== value) stripped.push(path + '~path');
+    return [r, stripped];
   }
   if (value === null || typeof value !== 'object') return [value, stripped];
   const out = {};
