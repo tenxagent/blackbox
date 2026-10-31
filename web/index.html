@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Black box verifier</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --fg: #1d1d1b; --muted: #6b6b66; --card: #ffffff; --line: #e2e1dc;
+    --ok: #1f7a3d; --ok-bg: #e7f4ea; --bad: #a32020; --bad-bg: #fbeaea; --busy: #7a5a00; --busy-bg: #fbf3df;
+    --accent: #2f5bd3; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141413; --fg: #ecebe6; --muted: #9a9993; --card: #1e1e1c; --line: #33332f;
+      --ok: #7fd49a; --ok-bg: #16301f; --bad: #f19a9a; --bad-bg: #3a1a1a; --busy: #e8c56a; --busy-bg: #33290f; --accent: #8fb0ff;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #141413; --fg: #ecebe6; --muted: #9a9993; --card: #1e1e1c; --line: #33332f;
+    --ok: #7fd49a; --ok-bg: #16301f; --bad: #f19a9a; --bad-bg: #3a1a1a; --busy: #e8c56a; --busy-bg: #33290f; --accent: #8fb0ff;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 920px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 28px 0 8px; }
+  p { margin: 6px 0; }
+  .sub { color: var(--muted); margin-bottom: 16px; }
+  code, .mono { font-family: var(--mono); font-size: 13px; overflow-wrap: anywhere; }
+  .status { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; background: var(--card); margin: 8px 0; }
+  .status[data-state="ok"] { background: var(--ok-bg); border-color: var(--ok); color: var(--ok); }
+  .status[data-state="bad"] { background: var(--bad-bg); border-color: var(--bad); color: var(--bad); }
+  .status[data-state="busy"] { background: var(--busy-bg); border-color: var(--busy); color: var(--busy); }
+  .status .label { font-weight: 600; margin-right: 6px; }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 8px 0; }
+  dt { color: var(--muted); }
+  dd { margin: 0; }
+  form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  input[type="text"], select { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--fg); min-width: 0; }
+  input[type="text"] { flex: 1 1 260px; }
+  button { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent); color: #fff; cursor: pointer; }
+  ol { list-style: none; padding: 0; margin: 0; }
+  li { display: grid; grid-template-columns: 56px 150px 80px 1fr; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  li .seq, li .when { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  li .cat { font-size: 12px; color: var(--muted); }
+  li.cat-money .cat { color: var(--accent); font-weight: 600; }
+  li.cat-refusal .cat { color: var(--bad); font-weight: 600; }
+  li .what { overflow-wrap: anywhere; }
+  a { color: var(--accent); }
+  .tx { font-family: var(--mono); font-size: 12px; }
+  .ok { color: var(--ok); font-size: 12px; }
+  @media (max-width: 640px) {
+    li { grid-template-columns: 1fr 1fr; }
+    li .what { grid-column: 1 / -1; }
+    dl { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Black box verifier</h1>
+  <p class="sub">Recomputes the hash chain over an AI agent's decision records in your browser and compares it with the head anchored on NEAR.</p>
+
+  <dl>
+    <dt>agent</dt><dd class="mono" id="agent-id">…</dd>
+    <dt>final head</dt><dd class="mono" id="final-head">…</dd>
+  </dl>
+
+  <h2>1. Chain over data/records.jsonl</h2>
+  <div class="status" id="chain-status" data-state="busy"><span class="msg">loading…</span></div>
+  <p>Check another copy of the records (for example one you edited) against the same checkpoints:
+    <input type="file" id="file" accept=".jsonl,.txt,application/json"></p>
+  <p class="sub">The checkpoint heads come from this repository. On their own they only show that the file is consistent with itself; the NEAR anchor below is the independent check.</p>
+
+  <h2>2. Head anchored on NEAR (SocialDB)</h2>
+  <form id="near-form">
+    <select id="network" aria-label="network"><option value="testnet">testnet</option><option value="mainnet">mainnet</option></select>
+    <input type="text" id="account" placeholder="NEAR account that anchors the head" aria-label="NEAR account">
+    <button type="submit">Check anchor</button>
+  </form>
+  <div class="status" id="near-status" data-state="idle"><span class="msg">…</span></div>
+
+  <h2>3. Last 50 decisions</h2>
+  <p class="sub">Newest first. Transaction links open the Robinhood Chain explorer; ✓ means <code>node src/rh-proof.mjs --all</code> found the receipt and it was sent from the agent wallet.</p>
+  <ol id="decisions"></ol>
+</main>
+<script type="module" src="verify.js"></script>
+</body>
+</html>
