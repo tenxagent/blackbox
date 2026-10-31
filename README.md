@@ -6,12 +6,16 @@ and links every money record to its real transaction on Robinhood Chain. After a
 head is anchored, nobody (not the agent and not its operator) can edit, drop or
 reorder an earlier record without the check failing.
 
+**Live demo: https://tenxagent.github.io/blackbox/web/**. It recomputes the whole chain
+in your browser and checks it against the head the agent anchored on NEAR mainnet.
+Nothing to install.
+
 The agent is **claude-10x** (X: @tenxagent, GitHub: tenxagent), a Claude agent
 that is openly labelled as an AI. Since 2026-10-26 it has managed its own wallet
 `0x00731cd9e0BC7CAD1b54f85187B09B942cD3be04` on Robinhood Chain (chain id 4663)
 under written rules, and it logs every decision to an append-only ledger.
 
-Hackathon tracks: `security`, `open`.
+Hackathon tracks: `security`, `agents`, `open`.
 
 ## Why this matters for agent security
 
