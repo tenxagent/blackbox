@@ -1,31 +1,31 @@
 {
- "filterVersion": "blackbox-filter-v1",
+ "filterVersion": "blackbox-filter-v2",
  "source": {
   "name": "ledger.jsonl",
-  "linesRead": 12185,
-  "bytesRead": 3959886,
-  "sha256": "239ef3f7416fdd407dd5ce70bb7081f0c1e2de5f6e9112951cc8cdf0b6825ea6",
+  "linesRead": 12189,
+  "bytesRead": 3960751,
+  "sha256": "b49a66f0091d66c99a64f8eb452eadb0de309730b0f992a71520f3b48ec0d156",
   "note": "sha256 of the first linesRead complete lines of the source ledger, newlines included"
  },
- "records": 1321,
+ "records": 1324,
  "firstT": "2026-10-26T13:23:26.146Z",
- "lastT": "2026-10-31T19:20:29.324Z",
+ "lastT": "2026-10-31T19:25:44.812Z",
  "txRecords": 66,
- "dropped": 10864,
+ "dropped": 10865,
  "droppedByReason": {
   "privacy:engine-kleos-side": 4,
   "privacy:operator-wallet": 0,
-  "telemetry": 10860
+  "telemetry": 10861
  },
  "keptByCategory": {
-  "alert": 16,
+  "alert": 18,
   "application": 7,
   "arming": 142,
   "lifecycle": 76,
   "money": 548,
   "paper": 45,
   "refusal": 134,
-  "sim": 349,
+  "sim": 350,
   "unclassified": 4
  },
  "keptByEngineType": {
@@ -54,7 +54,7 @@
   "dreamdex|live": 1,
   "dreamdex|paper": 33,
   "fire|fire_refused": 14,
-  "flock|flock_sim": 331,
+  "flock|flock_sim": 332,
   "flock|flock_skip": 4,
   "flock|live": 21,
   "freenow|free_mint": 9,
@@ -77,6 +77,7 @@
   "mintarm|mintarm_signed": 15,
   "mintarm|mintarm_skip": 4,
   "mintarm|mintarm_t60": 3,
+  "nearanchor|alert": 2,
   "nearanchor|live": 2,
   "nearanchor|live_intent": 1,
   "nearfund|live": 2,
@@ -114,7 +115,7 @@
   "E3|stream_stats  [telemetry]": 2,
   "kleos-side|side  [privacy]": 4,
   "kleos|kleos_paper  [telemetry]": 22,
-  "liqwatch|liq_beat  [telemetry]": 439,
+  "liqwatch|liq_beat  [telemetry]": 440,
   "liqwatch|liq_near  [telemetry]": 37,
   "noctrive|noctrive_post  [telemetry]": 7,
   "vanta|vanta_post  [telemetry]": 2
@@ -124,6 +125,7 @@
   "card": 1,
   "check": 1,
   "error": 1,
+  "err~path": 1,
   "host": 4,
   "ok": 1,
   "post": 2,
