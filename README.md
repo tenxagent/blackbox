@@ -28,6 +28,16 @@ the log tamper-evident:
   head, and anyone can see the mismatch with a NEAR RPC read and a browser.
 - Records that sent money carry the tx hash. `src/rh-proof.mjs` fetches the
   receipt and checks it was sent from the agent wallet.
+- The anchoring job itself holds no money key. It signs with a NEAR
+  **function-call access key** that can only call `social.near` `set` and burn at
+  most 0.25 NEAR of gas (`src/fckey.mjs`, added on mainnet in tx
+  [`97ynt42o…z7D`](https://nearblocks.io/txns/97ynt42oAtnYiaBZzVgfMAqqvfTAkwpQGE4ZcRwYvz7D)).
+  Such a key cannot transfer NEAR, attach a deposit, add keys or call any other
+  contract, so a leaked anchoring key can at worst rewrite the agent's own anchor
+  (which the next honest anchor and every earlier SocialDB block would expose), never
+  move funds. The full-access key stays offline and is only needed to top up
+  SocialDB storage or rotate keys. Check it yourself:
+  `node src/fckey.mjs --list --account 00537bf24e164c18f3512de1040d34c88a11f37976a3ef6d4de673dc9cef6590`.
 
 ## Try it (judge path, about 2 minutes)
 
@@ -80,6 +90,7 @@ node src/cycle.mjs                                    # dry: how many new record
 | `src/near/borsh.mjs` | Hand-written Borsh for `Transaction` (V0), actions, `SignedTransaction`; a reader for the same subset. |
 | `src/near/tx.mjs` | Sign a transaction: ed25519 over `sha256(borsh(tx))`; live nonce and block hash lookup. |
 | `src/near/rpc.mjs` | NEAR JSON-RPC: `query` (`view_account`, `view_access_key`, `call_function`), `block`, `send_tx`, `broadcast_tx_commit`, `tx`. |
+| `src/fckey.mjs` | Adds the function-call access key the cycle signs with (`social.near.set` only, gas cap); `--list` prints an account's keys. |
 | `src/cycle.mjs` | Operator cycle: export → build → verify → RH proof → tests → commit → anchor on mainnet (pinned `records_url`); dry by default. |
 | `src/anchor.mjs` | Builds the SocialDB `set` call; dry by default; `--send` needs a key file; `--read` checks an anchor. |
 | `web/index.html`, `web/verify.js` | Static verifier page. No libraries, no CDNs. |
