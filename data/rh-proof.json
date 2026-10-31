@@ -4,7 +4,7 @@
  "agentWallet": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
  "explorerTx": "https://robinhoodchain.blockscout.com/tx/",
  "counts": {
-  "verified": 55,
+  "verified": 60,
   "not_on_rh": 3
  },
  "results": [
@@ -746,6 +746,71 @@
    "blockTime": "2026-10-31T11:06:54.000Z",
    "lagSec": 5,
    "to": "0x8f3ea5d1333971f38026e04747d985748385f645"
+  },
+  {
+   "seq": 1217,
+   "tx": "0xa56e1dc69917914cf6de62fe866672e891527cb2d8d851720eeaf28cd04a85f2",
+   "chain": null,
+   "what": "flock_reinvest",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 102636043,
+   "blockTime": "2026-10-31T14:53:31.000Z",
+   "lagSec": 5,
+   "to": "0x8f3ea5d1333971f38026e04747d985748385f645"
+  },
+  {
+   "seq": 1231,
+   "tx": "0xcc6244b95f78b273d670cd9afd8652810bb9b96b4f49038fb3934141057054e4",
+   "chain": null,
+   "what": "approve_nft_conduit",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 102643831,
+   "blockTime": "2026-10-31T15:07:09.000Z",
+   "lagSec": 5,
+   "to": "0x6035175e4b73dcbef5cc50e1ac29be40cb65edeb"
+  },
+  {
+   "seq": 1244,
+   "tx": "0xd03b605071c23dcb34fa2b80cb62a5051934f3b0b4dc5fd12671be992ee73817",
+   "chain": null,
+   "what": "flock_reinvest",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 102665032,
+   "blockTime": "2026-10-31T15:43:41.000Z",
+   "lagSec": 5,
+   "to": "0x8f3ea5d1333971f38026e04747d985748385f645"
+  },
+  {
+   "seq": 1261,
+   "tx": "0xd0fe560cd086a0aa19d48b0d73ac761b85a09694fff5652690068d2fa2fb4e20",
+   "chain": null,
+   "what": "flock_reinvest",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 102694153,
+   "blockTime": "2026-10-31T16:33:51.000Z",
+   "lagSec": 5,
+   "to": "0x8f3ea5d1333971f38026e04747d985748385f645"
+  },
+  {
+   "seq": 1268,
+   "tx": "0x168ed93d97dafbfaf6140d26765bc107f9658aa239d4a8ac9292a5bcdb90d609",
+   "chain": null,
+   "what": "near_fund_deposit",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 102707329,
+   "blockTime": "2026-10-31T16:56:25.000Z",
+   "lagSec": 5,
+   "to": "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
   }
  ]
 }
