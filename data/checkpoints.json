@@ -7,12 +7,12 @@
   "every": 256,
   "hourly": true
  },
- "records": 1375,
- "recordsSha256": "46a3f2b15aceef142ef4e88304676f44048f761242592c371d4ca4cd4c193300",
+ "records": 1422,
+ "recordsSha256": "88297d006611c636997c90cd42fe63f2e51597446bda95330495fd25adf8ad10",
  "final": {
-  "seq": 1375,
-  "t": "2026-10-31T20:39:39.618Z",
-  "head": "c7cfa716a808c1d4e0eb242f088ef110b195222700ebfd02c6bf1b12cd448436"
+  "seq": 1422,
+  "t": "2026-10-31T22:00:20.247Z",
+  "head": "bec509aa1e5e82ea3d2f692dd590aa0c371a00203f6f514429db69d4a579c864"
  },
  "checkpoints": [
   {
@@ -787,6 +787,18 @@
    "seq": 1344,
    "t": "2026-10-31T19:59:30.255Z",
    "head": "3b59db6790226cfa4ea8bc0865f6e1f8340b7aab3ca7561b234d8e118a7c38d2",
+   "why": "hour"
+  },
+  {
+   "seq": 1382,
+   "t": "2026-10-31T20:59:41.952Z",
+   "head": "16a19239b2bb28e089771a785ec6e3e1169918ce914f638a057cd137117e61bb",
+   "why": "hour"
+  },
+  {
+   "seq": 1418,
+   "t": "2026-10-31T21:59:51.014Z",
+   "head": "d06d6f7b9c67947f5a282759f5d51d47937e4528337535dd41d2429ec6025101",
    "why": "hour"
   }
  ]
