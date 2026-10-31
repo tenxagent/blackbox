@@ -1,0 +1,15 @@
+{
+  "name": "blackbox",
+  "version": "0.1.0",
+  "description": "Verifiable flight recorder for an AI agent's money decisions: hash chain over its ledger, anchored on NEAR.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node test/run.mjs",
+    "export": "node src/export.mjs",
+    "build": "node src/chain.mjs build",
+    "verify": "node src/chain.mjs verify"
+  }
+}

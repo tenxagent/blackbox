@@ -1,0 +1,14 @@
+# Keys and secrets never enter the repo.
+keys/
+*.key
+*.key.json
+*-key.json
+.env
+.env.*
+# Local scratch
+node_modules/
+tmp/
+*.log
+
+# tamper demo output
+web/tampered.jsonl
