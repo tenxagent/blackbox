@@ -71,7 +71,8 @@ export function depositFor(storageBalance, minBalance, dataBytes) {
 }
 
 export function loadKeyFile(file) {
-  const j = JSON.parse(readFileSync(file, 'utf8'));
+  // "-" = read the key from stdin (fd 0): a child's stdin from Node is a socket, which open('/dev/stdin') refuses (ENXIO)
+  const j = JSON.parse(readFileSync(file === '-' ? 0 : file, 'utf8'));
   const secret = j.private_key || j.secret_key;
   if (!secret) throw new Error('key file needs "private_key" (or "secret_key")');
   const kp = keyPairFromString(secret);

@@ -5,7 +5,8 @@
 //   node src/cycle.mjs                         dry: exports to a temp dir and reports what an anchor would cover
 //   <key json on stdin> | node src/cycle.mjs --send     commit + anchor (mainnet)
 //
-// The NEAR key ({"account_id","private_key"}) is read from stdin and handed to anchor.mjs on its stdin: it never touches disk.
+// The NEAR key ({"account_id","private_key"}) is read from stdin and handed to anchor.mjs on its stdin (key file "-"): never on disk.
+// It anchors whenever the seq anchored on chain is behind the committed head, so a failed anchor is retried on the next run.
 // The ledger path comes from BLACKBOX_LEDGER (operator-only, like src/export.mjs). Refuses on a dirty working tree.
 import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -39,23 +40,28 @@ if (!SEND) {
 
 run(['src/export.mjs', '--ledger', LEDGER]);
 const after = records(path.join(ROOT, 'data'));
-if (after === before && !git('status', '--porcelain')) { console.log(`no new records (${after}); nothing to anchor`); process.exit(0); }
-run(['src/chain.mjs', 'build']);
-run(['src/chain.mjs', 'verify']);
-run(['src/rh-proof.mjs', '--all']);
-const t = spawnSync('node', ['test/run.mjs'], { cwd: ROOT, encoding: 'utf8' });
-const tl = (t.stdout + t.stderr).trim().split('\n').pop();
-if (t.status !== 0 || !/ 0 failed/.test(tl)) { git('checkout', '--', ...DATA); fail('tests failed after export, data reverted: ' + tl); }
-
+if (git('status', '--porcelain')) {
+  run(['src/chain.mjs', 'build']);
+  run(['src/chain.mjs', 'verify']);
+  run(['src/rh-proof.mjs', '--all']);
+  const t = spawnSync('node', ['test/run.mjs'], { cwd: ROOT, encoding: 'utf8' });
+  const tl = (t.stdout + t.stderr).trim().split('\n').pop();
+  if (t.status !== 0 || !/ 0 failed/.test(tl)) { git('checkout', '--', ...DATA); fail('tests failed after export, data reverted: ' + tl); }
+  const f = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/checkpoints.json'), 'utf8')).final;
+  git('add', ...DATA);
+  git('commit', '-q', '-m', `data: re-export through ${f.t} (${f.seq} records, head h_${f.seq} = ${f.head.slice(0, 8)}…${f.head.slice(-4)})`);
+  console.log(`committed ${git('rev-parse', '--short', 'HEAD')}: ${before} → ${after} records`);
+}
+// anchor whenever the chain's anchored seq is behind the committed head (also catches a commit whose anchor failed last time)
 const fin = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/checkpoints.json'), 'utf8')).final;
-git('add', ...DATA);
-git('commit', '-q', '-m', `data: re-export through ${fin.t} (${fin.seq} records, head h_${fin.seq} = ${fin.head.slice(0, 8)}…${fin.head.slice(-4)})`);
-const sha = git('rev-parse', 'HEAD');
-console.log(`committed ${sha.slice(0, 7)}: ${before} → ${after} records, head ${fin.head}`);
+const rd = spawnSync('node', ['src/anchor.mjs', '--read', '--network', 'mainnet', '--account', account], { cwd: ROOT, encoding: 'utf8', timeout: 60_000 });
+const anchoredSeq = Number((rd.stdout.match(/^anchored on mainnet .*?: seq (\d+) /m) ?? [])[1] ?? 0);
+if (anchoredSeq >= fin.seq) { console.log(`already anchored through seq ${anchoredSeq}; nothing to send`); process.exit(0); }
+const sha = git('log', '-1', '--format=%H', '--', 'data/records.jsonl');   // the commit that holds exactly these records
 
 const a = spawnSync('node', ['src/anchor.mjs', '--network', 'mainnet', '--send', '--i-understand-mainnet', '--records-url', `${REPO_RAW}/${sha}/data/records.jsonl`],
-  { cwd: ROOT, encoding: 'utf8', input: key, env: { ...process.env, BLACKBOX_NEAR_KEY_FILE: '/dev/stdin' }, timeout: 180_000 });
+  { cwd: ROOT, encoding: 'utf8', input: key, env: { ...process.env, BLACKBOX_NEAR_KEY_FILE: '-' }, timeout: 180_000 });
 const sent = (a.stdout.match(/^SENT (\w+): (.*)$/m) ?? []);
 if (sent[2] !== 'success') fail(`anchor not confirmed (${sent[1] ?? 'no tx'}): ${(sent[2] ?? a.stderr ?? '').slice(0, 300)}`);
-console.log(`anchored seq ${fin.seq} on mainnet: tx ${sent[1]} (records_url pinned to ${sha.slice(0, 7)})`);
+console.log(`anchored seq ${fin.seq} on mainnet (was ${anchoredSeq}): tx ${sent[1]} (records_url pinned to ${sha.slice(0, 7)})`);
 console.log(JSON.stringify({ ok: true, seq: fin.seq, head: fin.head, commit: sha, near_tx: sent[1], account }));
