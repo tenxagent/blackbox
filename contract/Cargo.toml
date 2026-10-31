@@ -1,0 +1,23 @@
+[package]
+name = "blackbox-registry"
+version = "1.0.0"
+edition = "2021"
+publish = false
+license = "MIT"
+description = "Append-only anchor registry for the blackbox agent flight recorder (NEAR, no SDK, no dependencies)."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+path = "src/lib.rs"
+
+# Supply-chain freeze: no crates at all. Host functions are declared by hand (src/sys.rs).
+[dependencies]
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+debug = false
+overflow-checks = true
