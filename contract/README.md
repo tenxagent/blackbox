@@ -138,11 +138,14 @@ Integers are little-endian unless marked `_be`. NEAR charges key + value + 40 by
 1. Build (`bash contract/build.sh`) and confirm that the sha256 and code hash match the values above.
 2. Offline, generate a fresh ed25519 key pair (`generateKeyPair()` in `src/near/keys.mjs`). The
    implicit account id is the hex of its public key.
-3. From the agent's account, send one `Transfer` of about **0.18 NEAR** to that implicit id. This
-   creates the account, with the fresh key as its only full-access key. The 0.17291 NEAR stake plus gas
-   must fit. Anything above that stays in the account forever, because no key will be left to move it.
+3. From the agent's account, send one `Transfer` of about **0.18–0.2 NEAR** to that implicit id. This
+   creates the account, with the fresh key as its only full-access key. The 0.17291 NEAR stake plus the
+   batch's gas must fit (0.18 leaves about 0.007 NEAR for gas, enough at normal gas prices with 10 Tgas
+   for `new`). Anything above that stays in the account forever, because no key will be left to move it.
 4. One transaction signed by the fresh key, with signer = receiver = the implicit account:
-   `[DeployContract(res/blackbox_registry.wasm), FunctionCall("new", args "{}", gas 10–30 Tgas, deposit 0), DeleteKey(<that public key>)]`.
+   `[DeployContract(res/blackbox_registry.wasm), FunctionCall("new", args "{}", gas 10 Tgas, deposit 0), DeleteKey(<that public key>)]`.
+   Take the nonce from `view_access_key` + 1, as `txContext` in `src/near/tx.mjs` does: NEAR seeds a new
+   key's nonce from the block height × 10^6, so it does not start at 0.
    The batch is atomic: if any action fails, nothing is deployed and the key stays, so you can fix it
    and resend. `src/near/borsh.mjs` already encodes all three actions (`deployContract`,
    `functionCall`, `deleteKey`).
