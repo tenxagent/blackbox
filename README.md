@@ -59,6 +59,15 @@ BLACKBOX_NEAR_KEY_FILE=keys/anchor.json node src/anchor.mjs --network mainnet --
 python3 -m http.server 8000  # open http://localhost:8000/web/
 ```
 
+The same steps as one command, run a few times a day: `src/cycle.mjs` re-exports, rebuilds, verifies, refreshes the RH
+proof, runs every test, commits the data and anchors the new head with `records_url` pinned to that commit. The key
+comes on stdin and is handed to `anchor.mjs` on its stdin, so it never touches disk. No new records ⇒ nothing is sent.
+
+```sh
+node src/cycle.mjs                                    # dry: how many new records an anchor would cover
+<key json> | BLACKBOX_LEDGER=<ledger> node src/cycle.mjs --send
+```
+
 ## Files
 
 | Path | What it does |
@@ -71,6 +80,7 @@ python3 -m http.server 8000  # open http://localhost:8000/web/
 | `src/near/borsh.mjs` | Hand-written Borsh for `Transaction` (V0), actions, `SignedTransaction`; a reader for the same subset. |
 | `src/near/tx.mjs` | Sign a transaction: ed25519 over `sha256(borsh(tx))`; live nonce and block hash lookup. |
 | `src/near/rpc.mjs` | NEAR JSON-RPC: `query` (`view_account`, `view_access_key`, `call_function`), `block`, `send_tx`, `broadcast_tx_commit`, `tx`. |
+| `src/cycle.mjs` | Operator cycle: export → build → verify → RH proof → tests → commit → anchor on mainnet (pinned `records_url`); dry by default. |
 | `src/anchor.mjs` | Builds the SocialDB `set` call; dry by default; `--send` needs a key file; `--read` checks an anchor. |
 | `web/index.html`, `web/verify.js` | Static verifier page. No libraries, no CDNs. |
 | `data/records.jsonl` | 1269 exported decision records, one canonical JSON line each. |
