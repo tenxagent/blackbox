@@ -70,7 +70,11 @@ export function describe(rec) {
       const roi = typeof r.roi === 'number' ? ` (paper ROI ${r.roi}%)` : '';
       return `Paper ladder ${step}${what}${roi}${r.dry ? ' (dry)' : ''}.`;
     }
-    case 'metaculus_forecast': return `Forecast: "${r.title}" — ${r.summary}.`;
+    case 'metaculus_forecast': {
+      // Market Pulse sub-questions (group posts) carry a label + phase instead of a title
+      const what = r.title ?? (r.label ? `Market Pulse: ${r.label}${r.phase ? `, ${r.phase} forecast` : ''}` : `post ${r.postId}`);
+      return `Forecast: "${what}" — ${r.summary}.`;
+    }
     case 'start': return `Engine ${r.engine || 'scanner'} started.`;
     case 'wl': case 'wl_apply': return `Applied for an allowlist (${r.action || r.project || 'details redacted'}).`;
     default: {
