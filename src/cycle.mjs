@@ -40,12 +40,17 @@ if (!SEND) {
   process.exit(0);
 }
 
-run(['src/export.mjs', '--config', CONFIG, '--ledger', LEDGER]);
+// 11-01: any step failing after the export used to leave data/ half-written (next cycle: "working tree is not clean")
+const step = (name, args) => { try { run(args); } catch (e) {
+  try { git('checkout', '--', ...DATA); } catch {}
+  const why = String(e.stdout || '').trim().split('\n').filter((l) => /mismatch|error|fail/i.test(l)).slice(-2).join(' | ') || String(e.stderr || e.message).trim().split('\n').filter((l) => !/^\s+at /.test(l)).pop();
+  fail(`${name} failed, data reverted: ${why}`); } };
+step('export', ['src/export.mjs', '--config', CONFIG, '--ledger', LEDGER]);
 const after = records(path.join(ROOT, 'data'));
 if (git('status', '--porcelain')) {
-  run(['src/chain.mjs', 'build', '--config', CONFIG]);
-  run(['src/chain.mjs', 'verify']);
-  run(['src/rh-proof.mjs', '--all']);
+  step('chain build', ['src/chain.mjs', 'build', '--config', CONFIG]);
+  step('chain verify', ['src/chain.mjs', 'verify']);
+  step('rh-proof', ['src/rh-proof.mjs', '--all']);
   const t = spawnSync('node', ['test/run.mjs'], { cwd: ROOT, encoding: 'utf8' });
   const tl = (t.stdout + t.stderr).trim().split('\n').pop();
   if (t.status !== 0 || !/ 0 failed/.test(tl)) { git('checkout', '--', ...DATA); fail('tests failed after export, data reverted: ' + tl); }
