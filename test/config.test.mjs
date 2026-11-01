@@ -91,6 +91,10 @@ export const tests = [
       const A = '0x' + 'ab'.repeat(32), B = '0x' + 'CD'.repeat(32);
       const d = classify(L({ type: 'x', dump: [1], tx: A, txHash: A, bundle: [B], err: 'at /Users/user/a.js and /home/user/b.js' }), none, c);
       assert.deepEqual(d.txs, [A, B.toLowerCase()]);
+      const o = cfg({ observedTxTypes: { seen_harvest: 'another keeper' } });
+      const seen = classify(L({ type: 'seen_harvest', tx: A }), none, o), own = classify(L({ type: 'harvest', tx: A }), none, o);
+      assert.deepEqual([seen.keep, seen.row.tx, seen.txs, own.txs], [true, A, [], [A]]);
+      assert.throws(() => cfg({ observedTxTypes: { '*_seen': 'x' } }), /observedTxTypes/);
       assert.equal('dump' in d.row, false);
       assert.equal(d.row.err, 'at <path> and /home/user/b.js');
       // redaction off: strings are left alone

@@ -75,6 +75,8 @@ const CAIP10 = /^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}:[-.%a-zA-Z0-9]{1,128}$/;
 //                              for h_0), e.g. "eip155:4663:0x0073…be04"
 //   filterVersion              label written into the manifest (default FILTER_VERSION)
 //   telemetryTypes             { "<type or *-glob>": "why it is not a decision" }: rows dropped in step 3
+//   observedTxTypes            { "<type>": "why" }: rows KEPT, but their tx hashes are someone else's (a watcher saw them),
+//                              so they are not listed in rec.txs and rh-proof does not claim them for the agent (default {})
 //   categories                 { "<category>": [ "<type>" | "<*-glob on type>" | {type?, action?, engine?} ] }
 //   privacyEngines             [ "<engine>" ] or { "<engine>": "why" }: rows dropped in step 2
 //   excludedAddressHashesFile  path (relative to the config file) of {"sha256": [64-hex, ...]}, or null (default)
@@ -91,7 +93,7 @@ const CAIP10 = /^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}:[-.%a-zA-Z0-9]{1,128}$/;
 //   comment                    free text, ignored
 // Any other field is an error, so a misspelt rule can never be skipped silently.
 
-const CONFIG_FIELDS = new Set(['comment', 'agentId', 'filterVersion', 'telemetryTypes', 'categories', 'privacyEngines',
+const CONFIG_FIELDS = new Set(['comment', 'agentId', 'filterVersion', 'telemetryTypes', 'observedTxTypes', 'categories', 'privacyEngines',
   'excludedAddressHashesFile', 'reduceEngines', 'sensitiveFieldName', 'publicChainFieldNames', 'bulkyFieldNames',
   'txHashFields', 'txHashListFields', 'redactLocalPaths', 'localPathRoots']);
 const RULE_FIELDS = ['type', 'action', 'engine'];
@@ -136,6 +138,10 @@ export function compileConfig(json, { baseDir = process.cwd(), name = 'config' }
     throw new Error(`${name}: "telemetryTypes" must be an object {"<type>": "<why it is not a decision>"}`);
   }
   const telemetryGlobs = Object.keys(telemetryTypes).filter((k) => k.includes('*')).map(globRe);
+  const observedTxTypes = json.observedTxTypes ?? {};
+  if (!isPlain(observedTxTypes) || !Object.entries(observedTxTypes).every(([k, v]) => k !== '' && !k.includes('*') && typeof v === 'string')) {
+    throw new Error(`${name}: "observedTxTypes" must be an object {"<exact type>": "<why the tx is not the agent's>"}`);
+  }
 
   const categories = json.categories ?? {};
   if (!isPlain(categories)) throw new Error(`${name}: "categories" must be an object {"<category>": [rules]}`);
@@ -183,6 +189,7 @@ export function compileConfig(json, { baseDir = process.cwd(), name = 'config' }
     filterVersion,
     telemetryTypes,
     telemetryGlobs,
+    observedTxTypes,
     catExact,
     catPatterns,
     privacyEngines: new Set(names(json.privacyEngines, 'privacyEngines', name) ?? []),
@@ -334,7 +341,8 @@ export function classify(rawLine, excluded, cfg = defaultConfig()) {
     }
   }
   const clean = redactInto(base, '', stripped, cfg);
-  return { keep: true, cat, row: clean, stripped, txs: txHashesOf(clean, cfg) };
+  const txs = Object.hasOwn(cfg.observedTxTypes, row.type) ? [] : txHashesOf(clean, cfg);
+  return { keep: true, cat, row: clean, stripped, txs };
 }
 
 const sha256hex = (s) => createHash('sha256').update(s, 'utf8').digest('hex');
@@ -389,6 +397,7 @@ export function exportText(text, { upto = Infinity, sourceName = 'ledger.jsonl',
     publicChainFieldNames: [...cfg.publicChainNames],
     bulkyFieldNames: [...cfg.bulkyNames],
   };
+  if (Object.keys(cfg.observedTxTypes).length) rules.observedTxTypes = cfg.observedTxTypes;   // only when used: v2 manifests stay byte-identical
   for (const [engine, keep] of Object.entries(cfg.reduceEngines)) rules[`${engine}RowsKeep`] = keep;
   const manifest = {
     filterVersion: cfg.filterVersion,
