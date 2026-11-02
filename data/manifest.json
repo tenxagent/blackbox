@@ -2,14 +2,14 @@
  "filterVersion": "blackbox-filter-v2",
  "source": {
   "name": "ledger.jsonl",
-  "linesRead": 14313,
-  "bytesRead": 4563511,
-  "sha256": "666b0e5a9bbc229f14b86f97d3be5d9f645f196b79376f2dfaef836b7d4592e7",
+  "linesRead": 14314,
+  "bytesRead": 4563880,
+  "sha256": "e1891e16d8bc66e3771818305bd788b268ced0391d320b33f1663bdf696b1677",
   "note": "sha256 of the first linesRead complete lines of the source ledger, newlines included"
  },
- "records": 2299,
+ "records": 2300,
  "firstT": "2026-10-26T13:23:26.146Z",
- "lastT": "2026-11-02T21:59:52.608Z",
+ "lastT": "2026-11-02T22:01:14.723Z",
  "txRecords": 88,
  "dropped": 12014,
  "droppedByReason": {
@@ -18,7 +18,7 @@
   "telemetry": 12010
  },
  "keptByCategory": {
-  "alert": 27,
+  "alert": 28,
   "application": 8,
   "arming": 171,
   "lifecycle": 91,
@@ -88,7 +88,7 @@
   "mintarm|mintarm_signed": 21,
   "mintarm|mintarm_skip": 5,
   "mintarm|mintarm_t60": 3,
-  "nearanchor|alert": 7,
+  "nearanchor|alert": 8,
   "nearanchor|live": 27,
   "nearanchor|live_intent": 2,
   "nearanchor|publish": 2,

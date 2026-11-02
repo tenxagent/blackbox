@@ -7,12 +7,12 @@
   "every": 256,
   "hourly": true
  },
- "records": 2299,
- "recordsSha256": "6243817a23d45b470ee39f75a80f144fef5e0c1677d5fbb670b78027c773a07b",
+ "records": 2300,
+ "recordsSha256": "316f511c13809eaeb30b99ca7150e5bc93519a2ef8e6fd3d05490426ec953268",
  "final": {
-  "seq": 2299,
-  "t": "2026-11-02T21:59:52.608Z",
-  "head": "c052401e8b38f9f59e9fd8be299a60b8ab2cf38ab31a0ce8f1191cf7606455f8"
+  "seq": 2300,
+  "t": "2026-11-02T22:01:14.723Z",
+  "head": "ee65127d40dd16ca987fdcfca8aa077a2e00dc5f1441d95fac7523b82ed32068"
  },
  "checkpoints": [
   {
@@ -1105,6 +1105,12 @@
    "seq": 2287,
    "t": "2026-11-02T20:59:46.501Z",
    "head": "eb21f69d47b90a71c8b4b793996872d6b03950f9fbe3a7c8b73802587dc2bb0f",
+   "why": "hour"
+  },
+  {
+   "seq": 2299,
+   "t": "2026-11-02T21:59:52.608Z",
+   "head": "c052401e8b38f9f59e9fd8be299a60b8ab2cf38ab31a0ce8f1191cf7606455f8",
    "why": "hour"
   }
  ]
