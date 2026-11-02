@@ -29,7 +29,7 @@
  },
  "categories": {
   "money": ["live", "tx", "lp_mint", "lp_exit", "lp_recenter", "free_mint", "fill", "stub_offer"],
-  "refusal": ["skip", "fire_refused", "flock_skip", "mintarm_skip", "stub_pause", "arm_gave_up", "qcwatch_end"],
+  "refusal": ["skip", "fire_refused", "flock_skip", "mintarm_skip", "stub_pause", "arm_gave_up", "qcwatch_end", "metaculus_usage_limited"],
   "alert": ["alert"],
   "sim": ["flock_sim", "poke_dry_done", "crank_dry_done", "mintarm_dry_done", "crank_rehearsal_done"],
   "paper": ["paper", "ladder", "metaculus_forecast"],
