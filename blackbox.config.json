@@ -25,10 +25,11 @@
   "vanta_post": "copy of a third-party X post"
  },
  "observedTxTypes": {
-  "beefyclm_taken": "another keeper's harvest tx, recorded by the paper watcher (the agent did not send it)"
+  "beefyclm_taken": "another keeper's harvest tx, recorded by the paper watcher (the agent did not send it)",
+  "sold": "a buyer's fill of the agent's standing listing (the buyer sent the tx; the agent only signed the listing)"
  },
  "categories": {
-  "money": ["live", "tx", "lp_mint", "lp_exit", "lp_recenter", "free_mint", "fill", "stub_offer"],
+  "money": ["live", "tx", "lp_mint", "lp_exit", "lp_recenter", "free_mint", "fill", "stub_offer", "sold"],
   "refusal": ["skip", "fire_refused", "flock_skip", "mintarm_skip", "stub_pause", "arm_gave_up", "qcwatch_end", "metaculus_usage_limited"],
   "alert": ["alert"],
   "sim": ["flock_sim", "poke_dry_done", "crank_dry_done", "mintarm_dry_done", "crank_rehearsal_done"],
