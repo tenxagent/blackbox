@@ -4,8 +4,8 @@
  "agentWallet": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
  "explorerTx": "https://robinhoodchain.blockscout.com/tx/",
  "counts": {
-  "verified": 80,
-  "not_on_rh": 3
+  "verified": 84,
+  "not_on_rh": 4
  },
  "results": [
   {
@@ -1069,6 +1069,66 @@
    "status": 1,
    "block": 103796591,
    "blockTime": "2026-11-02T00:22:32.000Z",
+   "lagSec": 5,
+   "to": "0x8f3ea5d1333971f38026e04747d985748385f645"
+  },
+  {
+   "seq": 2155,
+   "tx": "0x56a34da9be8bbe0c1c8061b95453ace92a91e8fb4c051aa05633ee5f8464e841",
+   "chain": "bsc",
+   "what": "termix_tx",
+   "result": "not_on_rh",
+   "note": "record says chain \"bsc\""
+  },
+  {
+   "seq": 2159,
+   "tx": "0xcb564af548ec07f63939f29f5ec0bdd72b1d70baa3148c71bb5ae88b5a722bc5",
+   "chain": null,
+   "what": "flock_reinvest",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 104295277,
+   "blockTime": "2026-11-02T14:44:06.000Z",
+   "lagSec": 7,
+   "to": "0x8f3ea5d1333971f38026e04747d985748385f645"
+  },
+  {
+   "seq": 2186,
+   "tx": "0x099a637af48b7c098ebb38a4e4ffc1ed7bc6c4ce9a52654b205eeb79d32cdb33",
+   "chain": null,
+   "what": "flock_reinvest",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 104334017,
+   "blockTime": "2026-11-02T15:49:24.000Z",
+   "lagSec": 5,
+   "to": "0x8f3ea5d1333971f38026e04747d985748385f645"
+  },
+  {
+   "seq": 2223,
+   "tx": "0x5e8080d225c35463c08c5f16de2581b7720bdc71611e7d59ac9d90db91b9ca2e",
+   "chain": null,
+   "what": "approve_nft_conduit",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 104394185,
+   "blockTime": "2026-11-02T17:31:14.000Z",
+   "lagSec": 5,
+   "to": "0xa8f09aab6d71367503c46d231b588b9991cf2f25"
+  },
+  {
+   "seq": 2277,
+   "tx": "0xa088ebc498fdab3f3edaf6d778c4e3afc24d19eaa903ba13f46df20f67debce8",
+   "chain": null,
+   "what": "flock_reinvest",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 104493963,
+   "blockTime": "2026-11-02T20:19:58.000Z",
    "lagSec": 5,
    "to": "0x8f3ea5d1333971f38026e04747d985748385f645"
   }
