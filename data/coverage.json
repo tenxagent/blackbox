@@ -1,0 +1,82 @@
+{
+ "wallet": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+ "rpc": "https://rpc.mainnet.chain.robinhood.com",
+ "at": "2026-11-03T14:46:31.672Z",
+ "lastRecordSeq": 2575,
+ "total": 659,
+ "explainedTx": 85,
+ "explainedBatch": 564,
+ "unexplained": 10,
+ "gaps": [
+  {
+   "from": 0,
+   "to": 0,
+   "n": 1,
+   "prevKnownNonce": null,
+   "nextKnownNonce": 1
+  },
+  {
+   "from": 2,
+   "to": 2,
+   "n": 1,
+   "prevKnownNonce": 1,
+   "nextKnownNonce": 3
+  },
+  {
+   "from": 4,
+   "to": 4,
+   "n": 1,
+   "prevKnownNonce": 3,
+   "nextKnownNonce": 5
+  },
+  {
+   "from": 6,
+   "to": 6,
+   "n": 1,
+   "prevKnownNonce": 5,
+   "nextKnownNonce": 7
+  },
+  {
+   "from": 10,
+   "to": 10,
+   "n": 1,
+   "prevKnownNonce": 9,
+   "nextKnownNonce": 11
+  },
+  {
+   "from": 76,
+   "to": 76,
+   "n": 1,
+   "prevKnownNonce": 75,
+   "nextKnownNonce": 77
+  },
+  {
+   "from": 416,
+   "to": 416,
+   "n": 1,
+   "prevKnownNonce": 415,
+   "nextKnownNonce": 417
+  },
+  {
+   "from": 424,
+   "to": 424,
+   "n": 1,
+   "prevKnownNonce": 423,
+   "nextKnownNonce": 425
+  },
+  {
+   "from": 426,
+   "to": 426,
+   "n": 1,
+   "prevKnownNonce": 425,
+   "nextKnownNonce": 427
+  },
+  {
+   "from": 658,
+   "to": 658,
+   "n": 1,
+   "prevKnownNonce": 657,
+   "nextKnownNonce": null
+  }
+ ]
+}

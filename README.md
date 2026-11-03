@@ -238,6 +238,7 @@ shows `chain OK up to seq 12 of 12` (the empty `account` skips the NEAR check; t
 | `blackbox.config.json` | claude-10x's export rules: telemetry types, categories, private engines, sensitive and bulky field names, tx-hash fields, `agentId`. |
 | `src/export.mjs` | Ledger to decision records: decision filter, privacy filter, record wrapping, manifest. Generic; every rule comes from the config (`--config`). Operator-only. |
 | `src/rh-proof.mjs` | Robinhood Chain receipt check for every record with a tx hash. |
+| `src/coverage.mjs` | Reconciles the wallet's on-chain nonce with the records (own tx hashes + mint/crank batches); writes `data/coverage.json`. |
 | `src/near/keys.mjs` | ed25519 keys with `node:crypto`, base58 (hand-written), `ed25519:` strings, implicit account ids. |
 | `src/near/borsh.mjs` | Hand-written Borsh for `Transaction` (V0), actions, `SignedTransaction`; a reader for the same subset. |
 | `src/near/tx.mjs` | Sign a transaction: ed25519 over `sha256(borsh(tx))`; live nonce and block hash lookup. |
@@ -416,6 +417,19 @@ testnet. The source is https://github.com/NearSocial/social-db, commit `b4a023d`
 
 ## Limits (stated plainly)
 
+- **Coverage: what fraction of the wallet's transactions the records account for.** The black box
+  records decisions and their outcomes. A single action (a listing, a sale, a reinvest call)
+  carries its own tx hash. The mint ladder and the crank race instead pre-sign a numbered batch of
+  transactions (consecutive nonces) and send one per block until one lands; the rest revert
+  cheaply. Those are recorded as one `mintarm_signed` / `crank_signed` record with `nonce0` and
+  `rungs`, not as one hash per rung. `node src/coverage.mjs` reconciles the wallet's on-chain
+  nonce (public RPC) with the records and writes `data/coverage.json`. On 2026-11-03 at 15:00Z
+  the wallet had sent 659 transactions: 85 (12.9 %) matched a record's own tx hash, 564 (85.6 %)
+  fell inside a recorded batch, and **10 (1.5 %) were not accounted for**. Those 10 are single
+  nonces, listed in `data/coverage.json`: transactions whose hash never reached the ledger (one
+  verified example is a reward claim on 10-31 that its tool logged only to its own file) and the
+  newest transaction, sent after the last export. The batch records show that rungs were signed,
+  not each rung's outcome.
 - **The registry is the source of truth; SocialDB is a readable mirror.** SocialDB keys stay
   writable by their owner, which is why the append-only registry exists. It was deployed and
   locked in one atomic tx on 2026-10-31
