@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SEND = process.argv.includes('--send');
 const CONFIG = path.resolve(process.argv.includes('--config') ? process.argv[process.argv.indexOf('--config') + 1] : path.join(ROOT, 'blackbox.config.json'));
-const LEDGER = process.env.BLACKBOX_LEDGER || '/root/claude-10x/ledger.jsonl';
+const LEDGER = process.env.BLACKBOX_LEDGER || 'ledger.jsonl'   // the operator sets BLACKBOX_LEDGER; no server path in the public code;
 const REPO_RAW = 'https://raw.githubusercontent.com/tenxagent/blackbox';
 const DATA = ['data/records.jsonl', 'data/manifest.json', 'data/checkpoints.json', 'data/heads.txt', 'data/rh-proof.json'];
 const run = (args, opts = {}) => execFileSync('node', args, { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 << 20, ...opts });

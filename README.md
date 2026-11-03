@@ -461,8 +461,8 @@ testnet. The source is https://github.com/NearSocial/social-db, commit `b4a023d`
 
 ## Baseline: what existed before, what is hackathon work
 
-- **Pre-existing, not part of this repository**: the agent itself, `/root/claude-10x`
-  on the operator's server. It includes the wallet, the trading and minting engines,
+- **Pre-existing, not part of this repository**: the agent itself (`claude-10x`), in a private
+  directory on the operator's server. It includes the wallet, the trading and minting engines,
   and the append-only ledger `ledger.jsonl` (started 2026-10-26). The ledger is the
   **input** to Black box. Its records are data, not hackathon code.
 - **Hackathon work**: everything in this repository, written from 2026-10-31. That

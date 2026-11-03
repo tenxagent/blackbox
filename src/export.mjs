@@ -438,7 +438,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
     console.error(e.message);
     process.exit(2);
   }
-  const ledger = arg('ledger', process.env.BLACKBOX_LEDGER || '/root/claude-10x/ledger.jsonl');
+  const ledger = arg('ledger', process.env.BLACKBOX_LEDGER || 'ledger.jsonl');
   const outDir = path.resolve(arg('out', path.join(root, 'data')));
   const upto = arg('upto') ? Number(arg('upto')) : Infinity;
   if (!fs.existsSync(ledger)) {

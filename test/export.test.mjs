@@ -175,7 +175,7 @@ export const tests = [
   {
     name: 'operator check: committed records rebuild byte-for-byte from the ledger',
     fn() {
-      const ledger = process.env.BLACKBOX_LEDGER || '/root/claude-10x/ledger.jsonl';
+      const ledger = process.env.BLACKBOX_LEDGER || 'ledger.jsonl';
       if (!existsSync(ledger)) throw new Skip('private ledger not on this machine (expected for judges)');
       const m = manifest();
       const { lines, manifest: m2 } = exportText(readFileSync(ledger, 'utf8'), { upto: m.source.linesRead, sourceName: m.source.name });
