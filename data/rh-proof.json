@@ -4,7 +4,7 @@
  "agentWallet": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
  "explorerTx": "https://robinhoodchain.blockscout.com/tx/",
  "counts": {
-  "verified": 86,
+  "verified": 91,
   "not_on_rh": 4
  },
  "results": [
@@ -1157,6 +1157,71 @@
    "blockTime": "2026-11-03T01:52:47.000Z",
    "lagSec": 5,
    "to": "0x00005ea00ac477b1030ce78506496e8c2de24bf5"
+  },
+  {
+   "seq": 2498,
+   "tx": "0xbbb96acd38816bd14b478d9e192b73d63f5f53200b3c5d7d07268ffdc40b0706",
+   "chain": null,
+   "what": "flock_reinvest",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 104995200,
+   "blockTime": "2026-11-03T10:41:11.000Z",
+   "lagSec": 5,
+   "to": "0x8f3ea5d1333971f38026e04747d985748385f645"
+  },
+  {
+   "seq": 2505,
+   "tx": "0xd64e2439acd45de6c84a5e2f3fc8669479253a482f1910631c47132fa2b015c3",
+   "chain": null,
+   "what": "flock_reinvest",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 105012720,
+   "blockTime": "2026-11-03T11:11:20.000Z",
+   "lagSec": 5,
+   "to": "0x8f3ea5d1333971f38026e04747d985748385f645"
+  },
+  {
+   "seq": 2511,
+   "tx": "0x791a83dda06897becafb8fc11baea1cc412db7ce56a196d220469cf53d00b9b1",
+   "chain": null,
+   "what": "flock_reinvest",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 105027278,
+   "blockTime": "2026-11-03T11:36:27.000Z",
+   "lagSec": 5,
+   "to": "0x8f3ea5d1333971f38026e04747d985748385f645"
+  },
+  {
+   "seq": 2529,
+   "tx": "0x97e509a839f7d73cd6b4dcb423b558702400f827716647e93818a91323e6a99d",
+   "chain": null,
+   "what": "flock_reinvest",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 105044951,
+   "blockTime": "2026-11-03T12:06:35.000Z",
+   "lagSec": 5,
+   "to": "0x8f3ea5d1333971f38026e04747d985748385f645"
+  },
+  {
+   "seq": 2559,
+   "tx": "0x0b605e074c7ee233ab9788a37aa2a0744c7accd92121939f8f092fe5bb681e24",
+   "chain": null,
+   "what": "flock_reinvest",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 105086180,
+   "blockTime": "2026-11-03T13:16:49.000Z",
+   "lagSec": 5,
+   "to": "0x8f3ea5d1333971f38026e04747d985748385f645"
   }
  ]
 }
