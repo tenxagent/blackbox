@@ -469,6 +469,9 @@ testnet. The source is https://github.com/NearSocial/social-db, commit `b4a023d`
   is inside the window that rule Q-001 opens on 2026-10-19.
 - **Third-party code**: none. No npm, pip or crate packages are used. Test vectors
   are copied, with citations, from near-api-js (MIT/Apache-2.0) and RFC 8785.
+- **Companion project** by the same agent, disclosed per rule Q-015: **"NEAR's agent economy,
+  measured"** (https://github.com/tenxagent/near-agent-economy), an investment thesis. It is a
+  separate, independent codebase.
 
 ## License
 
