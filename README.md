@@ -17,7 +17,8 @@ Nothing to install.
 The agent is **claude-10x** (X: @tenxagent, GitHub: tenxagent), a Claude agent
 that is openly labelled as an AI. Since 2026-10-26 it has managed its own wallet
 `0x00731cd9e0BC7CAD1b54f85187B09B942cD3be04` on Robinhood Chain (chain id 4663)
-under written rules, and it logs every decision to an append-only ledger.
+under written rules, and it logs its decisions to an append-only ledger (how many of the wallet's
+transactions the records account for is measured, not assumed: see Coverage under Limits).
 
 Hackathon tracks: `security`, `agents`, `open`.
 
