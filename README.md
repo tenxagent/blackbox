@@ -63,7 +63,7 @@ and plain browser JavaScript. Run all commands from the repository root.
 | 5 | `node src/anchor.mjs` | Dry run on NEAR testnet. It builds and signs a SocialDB `set` transaction with a throwaway key, prints the JSON args, the deposit and the tx hash, then `DRY RUN: nothing was sent`. |
 | 6 | `python3 -m http.server 8000`, then open `http://localhost:8000/web/` | The page recomputes the chain in the browser and shows `chain OK up to seq <N> of <N>`, then the last 50 decisions in plain words, with explorer links for transactions. |
 | 7 | `node src/chain.mjs tamper --seq 500 --out web/tampered.jsonl`, then open `http://localhost:8000/web/?records=tampered.jsonl` | The page turns red: `chain OK up to seq 496 (tampered.jsonl); first mismatch in seq 497..504`. You can also load any edited copy with the file picker. |
-| 8 | `node src/anchor.mjs --read --network mainnet --account 00537bf24e164c18f3512de1040d34c88a11f37976a3ef6d4de673dc9cef6590` | Reads the agent's anchor from `social.near` and checks it against the local records: `anchored on mainnet (social.near) by 00537bf2…6590: seq <anchored seq> head <8 hex>…<4 hex> …` then `local records match the anchor through seq 1269; all claims match`. |
+| 8 | `node src/anchor.mjs --read --network mainnet --account 00537bf24e164c18f3512de1040d34c88a11f37976a3ef6d4de673dc9cef6590` | Reads the agent's anchor from `social.near` and checks it against the local records: `anchored on mainnet (social.near) by 00537bf2…6590: seq <anchored seq> head <8 hex>…<4 hex> …` then `local records match the anchor through seq <anchored seq>; all claims match`. |
 | 9 | Open `http://localhost:8000/web/?network=mainnet&account=00537bf24e164c18f3512de1040d34c88a11f37976a3ef6d4de673dc9cef6590` | The same check in the browser: the page reads `<account>/blackbox` from SocialDB through NEAR RPC and reports whether the loaded records match the anchored head. |
 | 10 | `node src/registry-cli.mjs read --account 00537bf24e164c18f3512de1040d34c88a11f37976a3ef6d4de673dc9cef6590` | Reads the append-only registry on mainnet: `code hash HHWM5HdM… (= contract/res wasm), access keys 0 (locked)`, the agent's anchors, then `local check … ALL MATCH` against `data/heads.txt`. Exit code 0. Unlike step 8 (SocialDB, which its owner can overwrite), nobody can change these anchors. |
 
@@ -262,10 +262,10 @@ shows `chain OK up to seq 12 of 12` (the empty `account` skips the NEAR check; t
 | `src/cycle.mjs` | Operator cycle: export → build → verify → RH proof → tests → commit → anchor on mainnet (pinned `records_url`); dry by default. |
 | `src/anchor.mjs` | Builds the SocialDB `set` call; dry by default; `--send` needs a key file; `--read` checks an anchor. |
 | `web/index.html`, `web/verify.js` | Static verifier page. No libraries, no CDNs. |
-| `data/records.jsonl` | 1269 exported decision records, one canonical JSON line each. |
+| `data/records.jsonl` | The exported decision records, one canonical JSON line each (count under **Current numbers**). |
 | `data/manifest.json` | Filter counts, the rules, and the sha256 of the source ledger prefix. |
 | `data/excluded-address-hashes.json` | SHA-256 hashes of the operator's personal wallet addresses that the privacy filter excludes (addresses withheld). |
-| `data/checkpoints.json`, `data/heads.txt` | Genesis, 124 checkpoints, the final head; all 1270 heads (h_0..h_1269). |
+| `data/checkpoints.json`, `data/heads.txt` | Genesis, the checkpoints, the final head; every head h_0..h_N (N under **Current numbers**). |
 | `data/rh-proof.json` | Output of `node src/rh-proof.mjs --all`. |
 | `examples/minimal-agent/` | A made-up agent: synthetic `ledger.jsonl`, its `blackbox.config.json` and exclusion list, and the `expected/` output (records, manifest, checkpoints, heads). |
 | `test/*.test.mjs`, `test/run.mjs` | Self-tests; `node test/run.mjs` prints PASS/FAIL/SKIP per test. |
@@ -436,10 +436,10 @@ testnet. The source is https://github.com/NearSocial/social-db, commit `b4a023d`
   transactions (consecutive nonces) and send one per block until one lands; the rest revert
   cheaply. Those are recorded as one `mintarm_signed` / `crank_signed` record with `nonce0` and
   `rungs`, not as one hash per rung. `node src/coverage.mjs` reconciles the wallet's on-chain
-  nonce (public RPC) with the records and writes `data/coverage.json`. On 2026-11-03 at 15:00Z
-  the wallet had sent 659 transactions: 85 (12.9 %) matched a record's own tx hash, 564 (85.6 %)
-  fell inside a recorded batch, and **10 (1.5 %) were not accounted for**. Those 10 are single
-  nonces, listed in `data/coverage.json`: transactions whose hash never reached the ledger (one
+  nonce (public RPC) with the records and writes `data/coverage.json`; every cycle refreshes it and
+  the current split is under **Current numbers** (when first measured, 2026-11-03 15:00Z: 659 sent,
+  85 own hash, 564 in batches, **10 not accounted for**). The unaccounted ones are single nonces,
+  listed in `data/coverage.json`: transactions whose hash never reached the ledger (one
   verified example is a reward claim on 10-31 that its tool logged only to its own file) and the
   newest transaction, sent after the last export. The batch records show that rungs were signed,
   not each rung's outcome.
@@ -470,13 +470,13 @@ testnet. The source is https://github.com/NearSocial/social-db, commit `b4a023d`
   an edit to records 1–1269 fails the check. The first try (tx `D76hGzr2…`) panicked
   "Not enough storage balance" because the minimum deposit only covers registration;
   `depositFor()` now adds the data storage.
-- **The RH proof covers money records with a tx hash only** (63 of 1,269 records).
+- **The RH proof covers money records with a tx hash only** (the step 4 count under **Current numbers**).
   - Off-chain decisions (OpenSea offers, refusals, simulations, paper trades) cannot be
     proven to have happened. They can only be proven unedited after anchoring.
   - Three BNB Chain txs are not checked.
-- **Omissions are not detected.** If the agent sends a tx and never logs it, the
-  chain cannot show that. A later check could list the wallet's on-chain txs and
-  flag any without a record.
+- **Omissions are measured, not prevented.** `coverage.mjs` counts the wallet's transactions that
+  no record accounts for (Coverage above), but it cannot say what an unlogged transaction was, and
+  it covers the Robinhood Chain wallet only.
 - **The export is a filtered view.** `src` hashes commit to the source lines, but
   the ledger itself is private. A reviewer can check a line only if the operator
   reveals it. Changing the filter (a rule in `blackbox.config.json`, then its `filterVersion`) changes the seq numbering,
