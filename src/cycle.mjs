@@ -53,7 +53,9 @@ if (git('status', '--porcelain')) {
   step('rh-proof', ['src/rh-proof.mjs', '--all']);
   const t = spawnSync('node', ['test/run.mjs'], { cwd: ROOT, encoding: 'utf8' });
   const tl = (t.stdout + t.stderr).trim().split('\n').pop();
-  if (t.status !== 0 || !/ 0 failed/.test(tl)) { git('checkout', '--', ...DATA); fail('tests failed after export, data reverted: ' + tl); }
+  // 11-04: name the failing tests (14:31Z run failed once with only the summary line logged; the same data passed on a re-run)
+  const failed = (t.stdout + t.stderr).split('\n').filter((l) => /^FAIL\b/.test(l)).map((l) => l.slice(0, 140)).slice(0, 3).join(' | ');
+  if (t.status !== 0 || !/ 0 failed/.test(tl)) { git('checkout', '--', ...DATA); fail('tests failed after export, data reverted: ' + tl + (failed ? ' — ' + failed : '')); }
   // 11-03 (screening): measured coverage + README numbers regenerated from this data, committed with it. Neither may block the anchor.
   try { run(['src/coverage.mjs']); } catch (e) { console.log('coverage skipped:', String(e.message).slice(0, 120)); }
   try { run(['src/readme-numbers.mjs', '--tests', tl]); } catch (e) { console.log('readme numbers skipped:', String(e.message).slice(0, 120)); }
