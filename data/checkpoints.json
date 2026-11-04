@@ -7,12 +7,12 @@
   "every": 256,
   "hourly": true
  },
- "records": 2575,
- "recordsSha256": "aa5b9609c026d9a96f2eb2084b22c6913d1241ebd2b1c777fe743dda98bb165b",
+ "records": 2936,
+ "recordsSha256": "39ea51d77a8a32bf61b264a4f82e2049d5664afd26e65456cc0e5f474c1ec6db",
  "final": {
-  "seq": 2575,
-  "t": "2026-11-03T14:01:58.980Z",
-  "head": "76873bb30acf2d74f34a364f796d1639baae69b389d4ddaef3d9c1f0e3da7d1c"
+  "seq": 2936,
+  "t": "2026-11-04T10:12:24.583Z",
+  "head": "6b18bcb0cd9c0b055fc9c36d695354c1bd84033010c418224e63056be77ec746"
  },
  "checkpoints": [
   {
@@ -1219,6 +1219,132 @@
    "seq": 2574,
    "t": "2026-11-03T13:56:58.436Z",
    "head": "f2b9f5f71f7759a4df58d42da7ad1b82939f7125b4c4b1391b0f3b70d4eef4db",
+   "why": "hour"
+  },
+  {
+   "seq": 2596,
+   "t": "2026-11-03T14:59:16.451Z",
+   "head": "d1c8a910d0916fd1f9f1d45827b647c2456829ee9304cf463bfc57450cd6b17d",
+   "why": "hour"
+  },
+  {
+   "seq": 2617,
+   "t": "2026-11-03T15:57:21.620Z",
+   "head": "03bafbc509b141c43323b250ba121986ea458126f76505b71d31bc2931863cc0",
+   "why": "hour"
+  },
+  {
+   "seq": 2640,
+   "t": "2026-11-03T16:58:26.663Z",
+   "head": "53db2b415b577825f6a6a5872aecc60dd15657b879c81d1b0e751cb1311acd2b",
+   "why": "hour"
+  },
+  {
+   "seq": 2666,
+   "t": "2026-11-03T17:59:37.524Z",
+   "head": "521e3c4faaa0749159cb66971c8bad6c97141928d5a07b10f29351561bd7dded",
+   "why": "hour"
+  },
+  {
+   "seq": 2685,
+   "t": "2026-11-03T18:58:50.845Z",
+   "head": "497760de13d4df8be2807ba59781fd9cad0cedad01f9fa695930786fcc09f06a",
+   "why": "hour"
+  },
+  {
+   "seq": 2711,
+   "t": "2026-11-03T19:58:56.809Z",
+   "head": "f5549a127361c5a514763fc199d27d76486fd795b4e0d8a09192e7c385b419e3",
+   "why": "hour"
+  },
+  {
+   "seq": 2727,
+   "t": "2026-11-03T20:59:09.281Z",
+   "head": "d6fa62e156a78cbdeb8b0ecd0fee89504cf71268f677c296a7ec450193d0f3c1",
+   "why": "hour"
+  },
+  {
+   "seq": 2744,
+   "t": "2026-11-03T21:59:21.340Z",
+   "head": "1c833d5dab7914977d412cb5551cdaecbd8639319dc7276ecf8557d4c8ffc3b6",
+   "why": "hour"
+  },
+  {
+   "seq": 2765,
+   "t": "2026-11-03T22:59:33.392Z",
+   "head": "4fd09b340714e78f62074980650a1a1df772bd1aa8abc3adeb1176a7655c217c",
+   "why": "hour"
+  },
+  {
+   "seq": 2778,
+   "t": "2026-11-03T23:59:44.103Z",
+   "head": "9d9b7c299eaa216ba59dd75132595ec25ff79ba2c047063b361beb936587ba97",
+   "why": "hour"
+  },
+  {
+   "seq": 2792,
+   "t": "2026-11-04T00:59:59.546Z",
+   "head": "4c44ed13e7a80a78922b54bb82cff51f8712413dd155c11e9d4f0e2ae097d8f5",
+   "why": "hour"
+  },
+  {
+   "seq": 2805,
+   "t": "2026-11-04T01:55:14.932Z",
+   "head": "12b127ed2e7fa849ec26e8c10227de1ebe5b516921351cbd27c815dc6d833b45",
+   "why": "hour"
+  },
+  {
+   "seq": 2816,
+   "t": "2026-11-04T02:29:31.628Z",
+   "head": "01d00a53c3531fdb686a4539463003d1b55693e9f9b14c4d6d99527e47e3ab33",
+   "why": "count"
+  },
+  {
+   "seq": 2830,
+   "t": "2026-11-04T02:55:35.925Z",
+   "head": "4593ace0b2e24f36a0694491bc3f785d212ade687a23fc21b0781d0a745feba3",
+   "why": "hour"
+  },
+  {
+   "seq": 2844,
+   "t": "2026-11-04T03:55:51.692Z",
+   "head": "34b31a5b81b89c1e5cd0bef63b52c853285ab8a72f1a68880874f18c28bd80a7",
+   "why": "hour"
+  },
+  {
+   "seq": 2857,
+   "t": "2026-11-04T04:56:00.278Z",
+   "head": "f1e01d8ec077b0538a6e09dbabb2b3076663067f20ba22d30fb9ff7428912c8a",
+   "why": "hour"
+  },
+  {
+   "seq": 2871,
+   "t": "2026-11-04T05:56:15.542Z",
+   "head": "a3aa7c05dde8f505b24ff8b3bc7add12d7d34bc6911c95224ec9bab3eeb15598",
+   "why": "hour"
+  },
+  {
+   "seq": 2887,
+   "t": "2026-11-04T06:56:36.637Z",
+   "head": "2686bf1d7fc7d62c1e7b5c588fd6bc7c4623859eceb748ed9d6cdf1f37f76199",
+   "why": "hour"
+  },
+  {
+   "seq": 2901,
+   "t": "2026-11-04T07:56:51.822Z",
+   "head": "d76b642aa21858a071f04618c8428edfe4e1570662e3fa93b111c54a79bc09c6",
+   "why": "hour"
+  },
+  {
+   "seq": 2918,
+   "t": "2026-11-04T08:57:07.406Z",
+   "head": "c2e178bd3d426fd4c65ce14f35453e91f39f267baeb13b2af2cdf879e3fd6516",
+   "why": "hour"
+  },
+  {
+   "seq": 2933,
+   "t": "2026-11-04T09:57:23.163Z",
+   "head": "4609a687106febbb6c812cae8d7637ea855aa85b18dc49d241f02a8c086d338f",
    "why": "hour"
   }
  ]
