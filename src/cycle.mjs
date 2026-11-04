@@ -76,4 +76,16 @@ const a = spawnSync('node', ['src/anchor.mjs', '--network', 'mainnet', '--send',
 const sent = (a.stdout.match(/^SENT (\w+): (.*)$/m) ?? []);
 if (sent[2] !== 'success') fail(`anchor not confirmed (${sent[1] ?? 'no tx'}): ${(sent[2] ?? a.stderr ?? '').slice(0, 300)}`);
 console.log(`anchored seq ${fin.seq} on mainnet (was ${anchoredSeq}): tx ${sent[1]} (records_url pinned to ${sha.slice(0, 7)})`);
-console.log(JSON.stringify({ ok: true, seq: fin.seq, head: fin.head, commit: sha, near_tx: sent[1], account }));
+// 11-04 (re-screen R5): the published cycle also writes the head to the append-only REGISTRY when the operator supplies the registry key:
+// BLACKBOX_REGISTRY_KEY_FILE = a file or /dev/fd/N holding {"account_id","private_key"} of the anchor-only function-call key (never on disk
+// in the operator's job: a process substitution). Without it the cycle mirrors to SocialDB only, as before. A registry failure is printed,
+// never hidden, and does not undo the SocialDB anchor (the next cycle sees the registry behind and the operator re-runs registry-cli).
+let registry;
+if (process.env.BLACKBOX_REGISTRY_KEY_FILE) {
+  const r = spawnSync('node', ['src/registry-cli.mjs', 'anchor', '--seq', String(fin.seq), '--records-url', `${REPO_RAW}/${sha}/data/records.jsonl`, '--send', '--i-understand-mainnet'],
+    { cwd: ROOT, encoding: 'utf8', input: fs.readFileSync(process.env.BLACKBOX_REGISTRY_KEY_FILE, 'utf8'), env: { ...process.env, BLACKBOX_NEAR_KEY_FILE: '-' }, timeout: 120_000 });
+  const line = (r.stdout || '').split('\n').reverse().find((l) => l.includes('"action":"registry_anchor"'));
+  registry = line ? JSON.parse(line) : { ok: false, err: String(r.stderr || r.stdout || r.error || '').trim().split('\n').pop().slice(0, 300) };
+  console.log(line || `registry anchor FAILED: ${registry.err}`);
+}
+console.log(JSON.stringify({ ok: true, seq: fin.seq, head: fin.head, commit: sha, near_tx: sent[1], account, ...(registry ? { registry: { ok: registry.ok, near_tx: registry.near_tx } } : {}) }));
