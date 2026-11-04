@@ -37,14 +37,17 @@ the log tamper-evident:
   head, and anyone can see the mismatch with a NEAR RPC read and a browser.
 - Records that sent money carry the tx hash. `src/rh-proof.mjs` fetches the
   receipt and checks it was sent from the agent wallet.
-- The anchoring job itself holds no money key. It signs with a NEAR
-  **function-call access key** that can only call `social.near` `set` and burn at
-  most 0.25 NEAR of gas (`src/fckey.mjs`, added on mainnet in tx
-  [`97ynt42o…z7D`](https://nearblocks.io/txns/97ynt42oAtnYiaBZzVgfMAqqvfTAkwpQGE4ZcRwYvz7D)).
-  Such a key cannot transfer NEAR, attach a deposit, add keys or call any other
-  contract, so a leaked anchoring key can at worst rewrite the agent's own anchor
-  (which the next honest anchor and every earlier SocialDB block would expose), never
-  move funds. The full-access key stays offline and is only needed to top up
+- The anchoring job itself holds no money key. It signs with two NEAR
+  **function-call access keys**, each capped at 0.25 NEAR of gas:
+  - one that can only call the **registry's `anchor`** method (the source of truth);
+  - one that can only call `social.near` `set` (the readable mirror; `src/fckey.mjs`, added on
+    mainnet in tx [`97ynt42o…z7D`](https://nearblocks.io/txns/97ynt42oAtnYiaBZzVgfMAqqvfTAkwpQGE4ZcRwYvz7D)).
+
+  Neither key can transfer NEAR, attach a deposit, add keys or call anything else. A leaked
+  registry key could only append a *new* anchor with a higher seq; the registry keeps every
+  earlier head, and step 10 compares each one with the local records, so a bogus append shows up
+  as a mismatch. A leaked SocialDB key could at worst overwrite the mirror, which the registry and
+  every earlier SocialDB block would expose. Neither can move funds. The full-access key stays offline and is only needed to top up
   SocialDB storage or rotate keys. Check it yourself:
   `node src/fckey.mjs --list --account 00537bf24e164c18f3512de1040d34c88a11f37976a3ef6d4de673dc9cef6590`.
 
