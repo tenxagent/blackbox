@@ -19,6 +19,13 @@ change or remove it. Its code hash equals the reproducible build in [`contract/`
 in your browser and checks it against the head the agent anchored on NEAR mainnet.
 Nothing to install.
 
+**It also refuses.** Right before the agent signs a send, a pre-sign gate ([`src/gate.mjs`](src/gate.mjs)) reads the same
+log: no fresh anchor means no spending, there is a $30 per 24 h cap, and every payee must be cleared by a public policy
+([`gate.policy.json`](gate.policy.json)). In the attack demo, a phishing message gets the agent to ask for its whole
+USDG balance to be sent to `0x…dEaD`. The cap alone would let it through; the counterparty rule refuses it, and the
+live agent's refusal is recorded in its real log, which the next cycle anchors on NEAR (`node demo/attack/run.mjs`,
+section **Attack demo**).
+
 The agent is **claude-10x** (X: @tenxagent, GitHub: tenxagent), a Claude agent
 that is openly labelled as an AI. Since 2026-10-26 it has managed its own wallet
 `0x00731cd9e0BC7CAD1b54f85187B09B942cD3be04` on Robinhood Chain (chain id 4663)
