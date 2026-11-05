@@ -15,6 +15,7 @@ export const tests = [
       assert.ok(g({ action: 'gate_allow', pendingUsd: 3, what: 'relay swap', anchorAgeH: 3.4, spent24h: 0 }).startsWith('Pre-sign gate allowed $3.00 (relay swap)'));
       assert.ok(g({ action: 'gate_refuse', pendingUsd: 3, reasons: ['newest anchor is 21.0 h old'] }).includes('REFUSED $3.00: newest anchor is 21.0 h old.'));
       assert.ok(g({ action: 'gate_bypass', pendingUsd: 1 }).includes('bypassed by hand'));
+      assert.ok(g({ action: 'gate_allow', pendingUsd: 1, anchorAgeH: 3.7, spent24h: 0 }).endsWith('$0 already allowed in 24 h.'));   // was "$0."
     },
   },
   {
@@ -58,12 +59,28 @@ export const tests = [
     },
   },
   {
-    name: 'plain-word descriptions exist for every committed record (no undefined/NaN)',
+    name: 'plain-word descriptions exist for every committed record (no undefined/NaN, no empty slot)',
     fn() {
       for (const l of text.split('\n').filter(Boolean)) {
         const d = describe(JSON.parse(l));
-        assert.ok(d.length > 5 && !/undefined|NaN/.test(d), d);
+        // an empty slot shows up as "()", a double space, " ." or a bare "$" (e.g. "bounty  vs gas  → wait", "$0.")
+        assert.ok(d.length > 5 && !/undefined|NaN|null|\(\s*\)|\s\.$|(^|\s)\$[ .]|  /.test(d), d);
       }
+    },
+  },
+  {
+    name: 'decision list: money and NEAR rows say what moved, not just the action name',
+    fn() {
+      const live = (row) => describe({ row: { type: 'live', ...row } });
+      assert.equal(live({ action: 'relay_swap', chain: 'robinhood', from: 'USDG', to: 'ETH', amount: '1', received: '0.000444044331860622' }),
+        'Swapped 1 USDG for 0.000444 ETH through Relay on Robinhood Chain.');
+      assert.equal(live({ action: 'near_fund_done', status: 'SUCCESS', details: { amountInFormatted: '1.0', amountOutFormatted: '0.271814462645214675369177' } }),
+        'NEAR Intents finished the swap (SUCCESS): 1.0 USDG in, 0.2718 NEAR out.');
+      assert.ok(live({ action: 'registry_storage_deposit', near: 0.04, anchorsLeft: 41 }).startsWith('Prepaid 0.04 NEAR of registry storage (room for about 41 anchors)'));
+      assert.equal(describe({ row: { type: 'flock_sim', ok: false, err: '{"message":"execution reverted: FMG: SLIPPAGE","code":3}' } }),
+        'Simulated a reinvest: the call would fail (reverted: FMG: SLIPPAGE) → wait.');
+      assert.ok(describe({ row: { type: 'live_intent', action: 'near_fund', usdg: '1', downside: '-$1' } }).startsWith('About to send (written before signing): near fund, 1 USDG; worst case -$1'));
+      assert.ok(describe({ row: { type: 'vanta_err', engine: 'vanta', err: 'fetch failed' } }).includes('not a decision'));
     },
   },
   {

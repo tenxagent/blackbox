@@ -36,7 +36,15 @@ export const NEAR = {
 };
 
 const short = (s, n = 6) => (typeof s === 'string' && s.length > 2 * n + 2 ? `${s.slice(0, n + 2)}…${s.slice(-n)}` : String(s ?? ''));
-const usd = (x) => (typeof x === 'number' ? `$${x < 1 ? x.toFixed(4).replace(/0+$/, '') : x.toFixed(2)}` : '');
+export const usd = (x) => (typeof x === 'number' ? `$${x < 1 ? x.toFixed(4).replace(/\.?0+$/, '') : x.toFixed(2)}` : '');
+// a token amount (number or decimal string) for reading: 2 decimals from 1 up, 4 significant digits below
+const amt = (x) => { const v = Number(x); return x == null || x === '' || !Number.isFinite(v) ? String(x ?? '?') : String(v >= 1 ? +v.toFixed(2) : +v.toPrecision(4)); };
+const words = (s) => String(s ?? '').replace(/_/g, ' ');
+const CHAINS = { robinhood: 'Robinhood Chain', bsc: 'BNB Chain', hyperevm: 'HyperEVM', elysium: 'Elysium', base: 'Base', somnia: 'Somnia' };
+const chainOn = (c) => (c ? ` on ${CHAINS[c] || c}` : '');
+// the useful part of an RPC/HTTP error string: the revert reason if there is one, else the first 100 characters
+const errText = (e) => { const s = typeof e === 'string' ? e : JSON.stringify(e ?? ''); const m = s.match(/execution reverted:? ?([^"\\]*)/); return m ? `reverted${m[1] ? `: ${m[1].trim()}` : ''}` : s.slice(0, 100); };
+const why = (r) => (r.why ? `: ${r.why}` : '');
 
 // One record -> one plain sentence.
 export function describe(rec) {
@@ -67,6 +75,35 @@ export function describe(rec) {
         case 'free_mint': return `Minted a free NFT${on} (operator note: ${r.why ?? ''}).`;
         case 'unwrap_weth': return `Unwrapped ${r.amount} WETH (${r.why ?? ''}).`;
         case 'stub_filled_relist': return `Stub bid${on} was filled at ${usd(r.costUsd)}; relisted at ${usd(r.listUsd)}.`;
+        case 'relay_swap': return `Swapped ${r.amount} ${r.from} for ${amt(r.received)} ${r.to} through Relay${chainOn(r.chain)}.`;
+        case 'giga_sell': return `Sold ${r.giga} GIGA for ${amt(r.usdg)} USDG${r.via === 'relay' ? ' through Relay' : ''}${why(r)}.`;
+        case 'mint_autolist': return `Listed the minted ${r.slug} #${r.tokenId} for sale at ${usd(r.usd)}.`;
+        case 'mint_now_done': return `Minted ${r.minted} ${r.slug}${r.tokenIds?.length ? ` (#${r.tokenIds.join(', #')})` : ''}.`;
+        case 'reprice_nft': return `Repriced its ${r.slug} #${r.tokenId} listing to ${usd(r.usd)} (from recent ${r.basis}).`;
+        case 'sleeve_buy': return `Bought ${r.symbol} on Elysium for ${amt(r.hype)} HYPE (${usd(r.usd)})${why(r)}.`;
+        case 'sleeve_fund_relay_approve': return 'Approved the exact USDG amount for the Relay bridge (Robinhood Chain → HyperEVM).';
+        case 'sleeve_fund_relay_deposit': return 'Deposited USDG into the Relay bridge (Robinhood Chain → HyperEVM).';
+        case 'sleeve_fund_relay': return `Relay filled the ${usd(r.usd)} bridge: HyperEVM balance now ${amt(r.hyperevmHype)} HYPE.`;
+        case 'sleeve_fund_inbox': return `Deposited ${amt(r.hype)} HYPE into the Elysium bridge inbox on HyperEVM.`;
+        case 'near_fund_deposit': return 'Sent USDG to a NEAR Intents deposit address, to fund its NEAR account.';
+        case 'near_fund_done': { const d = r.details || {}; return `NEAR Intents finished the swap (${r.status}): ${d.amountInFormatted} USDG in, ${amt(d.amountOutFormatted)} NEAR out.`; }
+        case 'near_hackathon_submitted': return `Submitted ${r.project} to the NEAR hackathon (${r.repo}).`;
+        case 'blackbox_first_anchor': return `First anchor on NEAR: wrote the head after record ${r.seq} to SocialDB (read back: ${r.readback}).`;
+        case 'blackbox_anchor': return `Anchored the head after record ${r.seq} on NEAR (SocialDB).`;
+        case 'blackbox_anchor_failed': return `Anchoring on NEAR failed: ${r.status}.`;
+        case 'social_set': return 'Wrote its anchor entry to NEAR SocialDB.';
+        case 'socialdb_storage_deposit': return `Prepaid ${r.near} NEAR of SocialDB storage.`;
+        case 'registry_fund': return "Funded the registry contract's NEAR account.";
+        case 'registry_deploy_init_lock': return 'Deployed the registry contract, initialised it and deleted its access key in one transaction, so the code cannot change.';
+        case 'registry_checks': return `Read back the deployed registry (code hash ${r.code_hash}): ${r.ok ? 'checks passed' : 'checks FAILED'}.`;
+        case 'registry_register': return 'Registered its NEAR account in the registry.';
+        case 'registry_addkey': return "Added the anchor key: a function-call key that can only call the registry's anchor method.";
+        case 'registry_anchor': return 'Anchored the head in the NEAR registry contract.';
+        case 'registry_storage_deposit': return `Prepaid ${r.near} NEAR of registry storage${r.anchorsLeft != null ? ` (room for about ${r.anchorsLeft} anchors)` : ''}${why(r)}.`;
+        case 'termix_claim': return 'Claimed a Termix bounty slot in its escrow contract on BNB Chain.';
+        case 'termix_submit': return 'Submitted the Termix bounty proof to the escrow contract on BNB Chain.';
+        case 'termix_tx': return `Sent a Termix transaction${chainOn(r.chain)}.`;
+        case 'termix_bounty_submitted': return `Termix accepted the bounty submission (${r.status}; review by ${String(r.reviewDeadline).slice(0, 10)}).`;
         default: return `Sent ${String(a || 'a transaction').replace(/_/g, ' ')}${on}${r.chain && r.chain !== 'robinhood' ? ` on ${r.chain}` : ''}.`;
       }
     case 'tx': return `Sent tx: ${r.label}.`;
@@ -87,7 +124,22 @@ export function describe(rec) {
       const detail = r.note || r.url || (Array.isArray(r.after) ? `now ${r.after.join(', ')}` : '');
       return `Alert from ${r.engine}${r.action ? ` (${r.action.replace(/_/g, ' ')})` : ''}${detail ? `: ${detail}` : ''}.`;
     }
-    case 'flock_sim': return `Simulated a reinvest: bounty ${usd(r.bountyUsd)} vs gas ${usd(r.gasUsd)} → ${r.go ? 'go' : 'wait'}.`;
+    case 'flock_sim': return typeof r.bountyUsd === 'number'
+      ? `Simulated a reinvest: bounty ${usd(r.bountyUsd)} vs gas ${usd(r.gasUsd)} → ${r.go ? 'go' : 'wait'}.`
+      : `Simulated a reinvest: the call would fail (${errText(r.err)}) → wait.`;
+    case 'live_intent': {   // written BEFORE signing; the matching live row follows if the send happened
+      const size = [r.usdg && `${r.usdg} USDG`, r.near && `${r.near} NEAR`].filter(Boolean).join(', ');
+      return `About to send (written before signing): ${words(r.action)}${size ? `, ${size}` : ''}${r.downside ? `; worst case ${r.downside}` : ''}.`;
+    }
+    case 'decision': return `Decided: ${words(r.action)}${on}${why(r)}.`;
+    case 'account': return `Registered an agent account on ${r.engine}${r.ok === false ? ' (failed)' : ''}.`;
+    case 'publish': return `Made ${r.repo} public (operator approved; leak check ${String(r.leak_gate).split(' ')[0]}).`;
+    case 'mint_autolist_skip': return `Did not list the minted ${r.slug}: no reference price.`;
+    case 'mintarm_direct_skip': return `Skipped the direct mint${on}${why(r)}.`;
+    case 'mintarm_fallback_local': return `Mint${on}: the remote sender did not confirm, so it fell back to sending from this server.`;
+    case 'beefyclm_summary': return `Beefy keeper (paper) summary: ${r.ticks} checks, ${r.wouldSends} would-sends, ${r.won} won, ${r.taken} taken by other keepers.`;
+    case 'beefyclm_would_send': return `Paper: would have harvested ${r.name} for ${usd(r.netUsd)} net (gas ${usd(r.gasUsd)}).`;
+    case 'beefyclm_taken': return `Another keeper harvested ${r.name} (observed; the agent sent nothing; its paper net would have been ${usd(r.ourNetUsd)}).`;
     case 'paper': return `Paper trade: ${[String(r.action || '').replace(/_/g, ' '), r.side, r.market, r.pct ? `${r.pct}%` : ''].filter(Boolean).join(' ')}${r.ok === false ? ' (failed)' : ''}.`;
     case 'ladder': {
       const step = String(r.action || '').replace(/^ladder_/, '').replace(/_/g, ' ');
@@ -98,15 +150,16 @@ export function describe(rec) {
     case 'metaculus_forecast': {
       // Market Pulse sub-questions (group posts) carry a label + phase instead of a title
       const what = r.title ?? (r.label ? `Market Pulse: ${r.label}${r.phase ? `, ${r.phase} forecast` : ''}` : `post ${r.postId}`);
-      return `Forecast: "${what}" — ${r.summary}.`;
+      return `Forecast: "${what}" — ${String(r.summary ?? '').trim().replace(/\d+\.\d{5,}/g, (x) => String(+Number(x).toPrecision(4)))}.`;
     }
     case 'start': return `Engine ${r.engine || 'scanner'} started.`;
     case 'wl': case 'wl_apply': return `Applied for an allowlist (${r.action || r.project || 'details redacted'}).`;
     default: {
       if (/_start$/.test(r.type || '')) return `Started ${r.engine || r.type.replace(/_start$/, '')}.`;
+      if (/_err$/.test(r.type || '')) return `Error in ${r.engine || r.type.replace(/_err$/, '')}${r.what ? ` (${r.what})` : ''}: ${errText(r.err)} (logged; not a decision).`;
       if (/armed|signed|t60|build|moved|wait|remote/.test(r.type || '')) return `Preparing: ${r.type.replace(/_/g, ' ')}${on}${r.dry ? ' (dry)' : ''}.`;
       if (/dry_done|rehearsal/.test(r.type || '')) return `Dry run: ${r.type.replace(/_/g, ' ')}${on}.`;
-      return `${r.engine || ''} ${r.type || ''} ${a || ''}`.trim() + '.';
+      return `${r.engine ? `${r.engine}: ` : ''}${words(r.type)}${a ? ` (${words(a)})` : ''}.`;
     }
   }
 }
