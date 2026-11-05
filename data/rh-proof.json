@@ -4,7 +4,7 @@
  "agentWallet": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
  "explorerTx": "https://robinhoodchain.blockscout.com/tx/",
  "counts": {
-  "verified": 123,
+  "verified": 126,
   "not_on_rh": 8
  },
  "results": [
@@ -1670,6 +1670,45 @@
    "what": "sleeve_buy",
    "result": "not_on_rh",
    "note": "engine \"sleeve\" runs on elysium (implied: the record has no chain field)"
+  },
+  {
+   "seq": 3324,
+   "tx": "0x25324d12b7ba4196eedb2f4d686eac92180aa488ed488807197077ba9cb8d8d7",
+   "chain": "robinhood",
+   "what": "giga_sell",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 106795027,
+   "blockTime": "2026-11-05T14:07:06.000Z",
+   "lagSec": 20,
+   "to": "0x5baaec1b70864f01dbdb747358ff59f2e2ccf7d5"
+  },
+  {
+   "seq": 3324,
+   "tx": "0xf9b2df0f6d2d0ea9fd15ebf056942124017cfa18c246219a9cdfe6b2231d8279",
+   "chain": "robinhood",
+   "what": "giga_sell",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 106795044,
+   "blockTime": "2026-11-05T14:07:08.000Z",
+   "lagSec": 18,
+   "to": "0x5567954cd026cebfe486062cb75848e0f1c12e58"
+  },
+  {
+   "seq": 3330,
+   "tx": "0x3af7911f1e79a0d4f6e46c97e65e30b4fe6d12c82aa1013cc1103ea56ecbc0d1",
+   "chain": null,
+   "what": "flock_reinvest",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 106808205,
+   "blockTime": "2026-11-05T14:29:36.000Z",
+   "lagSec": 5,
+   "to": "0x8f3ea5d1333971f38026e04747d985748385f645"
   }
  ]
 }
