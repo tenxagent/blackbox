@@ -101,6 +101,9 @@ Every real decision becomes a `gate` record (`gate_allow`, `gate_refuse`, or `ga
 a send. **Which sends call it:** the agent's swap tool (`relay-swap.mjs`) and its coin buys (`sleeve/buy.mjs`,
 `sleeve/eleos.mjs`). Its mint and crank race tools do not: they are speed-critical. The rules are the pure
 function `evaluate()`, tested on hand-built inputs (`test/gate.test.mjs`); the agent imports this exact file.
+The first real gated send was a 1 USDG → ETH swap on 2026-11-05: `gate_allow` at 18:12:53Z, then the swap's two
+transactions as a `relay_swap` record. Both enter `data/records.jsonl` with the next anchoring cycle. Before that
+send the log held no gate records.
 
 ## Try it (judge path, about 2 minutes)
 
