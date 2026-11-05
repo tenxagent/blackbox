@@ -7,12 +7,12 @@
   "every": 256,
   "hourly": true
  },
- "records": 3157,
- "recordsSha256": "e751c2e1f96466e327f578f10642a70c1c1dc221faab0f1aed65585d5d0ae64a",
+ "records": 3227,
+ "recordsSha256": "96e6c1a7a3af2810f05e4625d55e149a567889655c2f6373e9c238f7699015fd",
  "final": {
-  "seq": 3157,
-  "t": "2026-11-05T01:05:31.517Z",
-  "head": "2ca31427e244f8ef41e200ab45a070e3662cafa00c21bab41bb088b9c98020ed"
+  "seq": 3227,
+  "t": "2026-11-05T06:28:49.360Z",
+  "head": "153ca211723fdfd006ed81dc5f4fb610a6a382adafc1c05f5c3dc625a1212499"
  },
  "checkpoints": [
   {
@@ -1441,6 +1441,36 @@
    "seq": 3155,
    "t": "2026-11-05T00:58:19.021Z",
    "head": "fbc8ae75da398daa97abaec402897598bb3196f95205d8415562719e982c5c61",
+   "why": "hour"
+  },
+  {
+   "seq": 3170,
+   "t": "2026-11-05T01:58:24.603Z",
+   "head": "78f1c67eb102d9d0064afa390a49dd41544993193946cc4f438fd42802141901",
+   "why": "hour"
+  },
+  {
+   "seq": 3182,
+   "t": "2026-11-05T02:58:30.529Z",
+   "head": "0c5651f11b664feb64e3788ef58b75b5006e4b42bce54993f7f0afcb5f4d8470",
+   "why": "hour"
+  },
+  {
+   "seq": 3197,
+   "t": "2026-11-05T03:58:36.715Z",
+   "head": "b702dfdb341c50da726076348b8666b898aefa5f1b7305acb3a660d09a5b82f5",
+   "why": "hour"
+  },
+  {
+   "seq": 3209,
+   "t": "2026-11-05T04:58:40.916Z",
+   "head": "2eb07ab43a1c6a41bb6b2e890a98f31c18a2a85768de06c636e139319b063e17",
+   "why": "hour"
+  },
+  {
+   "seq": 3221,
+   "t": "2026-11-05T05:58:46.656Z",
+   "head": "cbf7cdb25ab0dceba52ca39bde06e6e9bcf3b00a02cd5687cf70f0e051f50954",
    "why": "hour"
   }
  ]
