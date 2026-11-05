@@ -1,10 +1,10 @@
 {
  "wallet": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
  "rpc": "https://rpc.mainnet.chain.robinhood.com",
- "at": "2026-11-05T14:33:38.206Z",
- "lastRecordSeq": 3330,
- "total": 694,
- "explainedTx": 120,
+ "at": "2026-11-05T22:33:33.341Z",
+ "lastRecordSeq": 3453,
+ "total": 697,
+ "explainedTx": 123,
  "explainedBatch": 564,
  "unexplained": 10,
  "gaps": [
