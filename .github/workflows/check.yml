@@ -1,0 +1,25 @@
+# Re-runs the judge path on GitHub's machines (no keys, no secrets): tests, the hash chain over the committed records, and the
+# locked registry on NEAR mainnet against the committed heads.
+name: check
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '23 7 * * *'   # daily: re-reads the registry and the Robinhood Chain receipts live
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Tests (the operator check is skipped without the private ledger)
+        run: node test/run.mjs
+      - name: Chain over the committed records
+        run: node src/chain.mjs verify
+      - name: Append-only registry on NEAR mainnet vs the committed heads
+        run: node src/registry-cli.mjs read --account 00537bf24e164c18f3512de1040d34c88a11f37976a3ef6d4de673dc9cef6590

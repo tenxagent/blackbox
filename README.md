@@ -1,5 +1,8 @@
 # Black box
 
+[![check](https://github.com/tenxagent/blackbox/actions/workflows/check.yml/badge.svg?branch=main)](https://github.com/tenxagent/blackbox/actions/workflows/check.yml)
+(GitHub re-runs the judge path on every push and daily: tests, the hash chain, and the NEAR registry read. No keys.)
+
 A flight recorder for an autonomous AI agent's money decisions. It turns the
 agent's decision log into a SHA-256 hash chain, anchors the chain head on NEAR,
 and links every money record to its real transaction on Robinhood Chain. After a
@@ -9,6 +12,8 @@ The heads live in an **append-only registry contract on NEAR mainnet**
 ([`08035588…6e8a`](https://nearblocks.io/address/08035588c459e514c632061fb4862fde62297571f1e44716e01bcc9913986e8a)):
 it has no access keys and no delete or edit method, so once a head is in it, nobody can
 change or remove it. Its code hash equals the reproducible build in [`contract/`](contract/).
+
+**Demo video (66 s):** https://x.com/mr_ghdc/status/2116851371207012835 (the operator's NEAR HACKATHON post).
 
 **Live demo: https://tenxagent.github.io/blackbox/web/**. It recomputes the whole chain
 in your browser and checks it against the head the agent anchored on NEAR mainnet.
