@@ -208,6 +208,14 @@ anchor on NEAR:
    BLACKBOX_NEAR_KEY_FILE=keys/anchor.json node src/anchor.mjs --dir <data> --network mainnet --send --i-understand-mainnet --records-url <url>
    ```
 
+4. **The whole cycle in one command** (export → chain → proof → tests → commit → SocialDB anchor → **registry anchor**). The
+   registry key is a second function-call key that can only call the registry's `anchor`; pass it as a file path or `/dev/fd/N`
+   (a shell process substitution keeps it off disk). Without `BLACKBOX_REGISTRY_KEY_FILE` the cycle anchors SocialDB only.
+   ```sh
+   cat keys/anchor.json | BLACKBOX_REGISTRY_KEY_FILE=keys/registry-anchor.json BLACKBOX_LEDGER=<your ledger> node src/cycle.mjs --send
+   ```
+   The operator's own job runs exactly this, three times a day (since 2026-11-05 06:31Z with the registry step inside the cycle).
+
 `keys/` is in `.gitignore`. Each anchor writes the head, the seq, the `agentId` from `checkpoints.json` and
 `records_url` under `<account>/blackbox`, plus `anchors/<seq>` (see "Anchor on NEAR SocialDB" below).
 
