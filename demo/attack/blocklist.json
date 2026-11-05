@@ -1,0 +1,10 @@
+{
+ "comment": "Demo only: the shape of a shared blocklist entry. The real gate.policy.json ships an empty list; entries need evidence a reader can check.",
+ "block": [
+  {
+   "address": "0x000000000000000000000000000000000000dead",
+   "evidence": "the payee in a phishing message (demo/attack/message.txt): 'migrate' + 'send your FULL balance' + a deadline",
+   "source": "demo"
+  }
+ ]
+}

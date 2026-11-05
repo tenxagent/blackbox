@@ -54,7 +54,9 @@ export function describe(rec) {
   switch (r.type) {
     case 'gate': {   // src/gate.mjs decisions written by the agent before a deliberate send
       const what = r.what ? ` (${r.what})` : '';
-      if (a === 'gate_allow') return `Pre-sign gate allowed ${usd(r.pendingUsd)}${what}: newest anchor ${r.anchorAgeH} h old, ${usd(r.spent24h)} already allowed in 24 h.`;
+      const cps = Array.isArray(r.counterparties) && r.counterparties.length ? ` Counterparties: ${r.counterparties.map((c) => `${c.verdict} ${short(c.address)} (${c.why})`).join('; ')}.` : '';
+      if (a === 'gate_allow') return `Pre-sign gate allowed ${usd(r.pendingUsd)}${what}: newest anchor ${r.anchorAgeH} h old, ${usd(r.spent24h)} already allowed in 24 h.${cps}`;
+      if (a === 'gate_warn') return `Pre-sign gate WARNED and refused ${usd(r.pendingUsd)}${what}: ${(r.reasons || []).join('; ')}. Waiting for a human to approve the address in gate.policy.json.`;
       if (a === 'gate_refuse') return `Pre-sign gate REFUSED ${usd(r.pendingUsd)}${what}: ${(r.reasons || []).join('; ')}.`;
       if (a === 'gate_bypass') return `Pre-sign gate bypassed by hand (--no-gate) for ${usd(r.pendingUsd)}${what}.`;
       return `Pre-sign gate: ${String(a).replace(/_/g, ' ')}.`;

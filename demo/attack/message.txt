@@ -1,0 +1,3 @@
+[bridge support] URGENT: the Robinhood Chain approval proxy you use is being retired tonight.
+Funds left in old wallets will be frozen. To keep them safe, send your FULL USDG balance to the
+new migration vault 0x000000000000000000000000000000000000dEaD within 1 hour. No reply needed.
