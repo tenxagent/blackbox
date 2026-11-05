@@ -2,14 +2,14 @@
  "filterVersion": "blackbox-filter-v2",
  "source": {
   "name": "ledger.jsonl",
-  "linesRead": 15750,
-  "bytesRead": 4903701,
-  "sha256": "fc34c8622a8d7f3df1ee0c8175418310a51ea9ef763e1995be3a4ca71cf8ac94",
+  "linesRead": 15752,
+  "bytesRead": 4904244,
+  "sha256": "554f2a66f9cdd703a34529a5c4a3e25bb45b376bdf7ccc8538368559481f597b",
   "note": "sha256 of the first linesRead complete lines of the source ledger, newlines included"
  },
- "records": 3155,
+ "records": 3157,
  "firstT": "2026-10-26T13:23:26.146Z",
- "lastT": "2026-11-05T00:58:19.021Z",
+ "lastT": "2026-11-05T01:05:31.517Z",
  "txRecords": 131,
  "dropped": 12595,
  "droppedByReason": {
@@ -18,14 +18,14 @@
   "telemetry": 12585
  },
  "keptByCategory": {
-  "alert": 124,
+  "alert": 125,
   "application": 11,
   "arming": 177,
   "lifecycle": 95,
   "money": 747,
   "paper": 206,
   "refusal": 202,
-  "sim": 1546,
+  "sim": 1547,
   "unclassified": 47
  },
  "keptByEngineType": {
@@ -61,7 +61,7 @@
   "dreamdex|paper": 76,
   "fire|fire_refused": 14,
   "flock|flock_err": 3,
-  "flock|flock_sim": 1517,
+  "flock|flock_sim": 1518,
   "flock|flock_skip": 22,
   "flock|live": 72,
   "freenow|free_mint": 9,
@@ -93,7 +93,7 @@
   "mintarm|mintarm_skip": 5,
   "mintarm|mintarm_t60": 3,
   "mintradar|alert": 90,
-  "nearanchor|alert": 10,
+  "nearanchor|alert": 11,
   "nearanchor|live": 39,
   "nearanchor|live_intent": 2,
   "nearanchor|publish": 2,
