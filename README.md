@@ -98,8 +98,8 @@ The agent's own code calls it right before a deliberate send, and it refuses if:
 
 Every real decision becomes a `gate` record (`gate_allow`, `gate_refuse`, or `gate_bypass` when the operator runs with
 `--no-gate`), which is exported and anchored like any other record, so the log shows whether the gate ran before
-a send. **Which sends call it:** the agent's swap tool (`relay-swap.mjs`) and its coin buys (`sleeve/buy.mjs`,
-`sleeve/eleos.mjs`). Its mint and crank race tools do not: they are speed-critical. The rules are the pure
+a send. **Which sends call it:** the agent's swap tool (`relay-swap.mjs`), its coin buys (`sleeve/buy.mjs`,
+`sleeve/eleos.mjs`) and its NEAR funding (`near-fund.mjs`). Its mint and crank race tools do not: they are speed-critical. The rules are the pure
 function `evaluate()`, tested on hand-built inputs (`test/gate.test.mjs`); the agent imports this exact file.
 The first real gated send was a 1 USDG → ETH swap on 2026-11-05: `gate_allow` at 18:12:53Z, then the swap's two
 transactions as a `relay_swap` record. Both enter `data/records.jsonl` with the next anchoring cycle. Before that
@@ -554,7 +554,7 @@ testnet. The source is https://github.com/NearSocial/social-db, commit `b4a023d`
   - Eight records are on other chains and are not checked by `rh-proof`: four BNB Chain txs, one HyperEVM and three Elysium
     (`not_on_rh` in `data/rh-proof.json`).
 - **The gate is a policy the agent's own code calls.** A stolen wallet key, or an operator who edits the calling code,
-  bypasses it. A bypass made with `--no-gate` is recorded, but a bypass made by editing the code is not. Only the swap and coin-buy
+  bypasses it. A bypass made with `--no-gate` is recorded, but a bypass made by editing the code is not. Only the swap, coin-buy and NEAR-funding
   tools call it; the mint and crank race tools do not. It adds a NEAR read to every gated send, on purpose.
 - **Omissions are measured, not prevented.** `coverage.mjs` counts the wallet's transactions that
   no record accounts for (Coverage above), but it cannot say what an unlogged transaction was, and
