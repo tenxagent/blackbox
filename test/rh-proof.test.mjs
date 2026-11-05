@@ -1,10 +1,22 @@
 import { assert, netOrSkip } from './lib.mjs';
 import { readFileSync } from 'node:fs';
-import { proveTx, txRecords, sample, rpc, AGENT_WALLET, RH_CHAIN_ID } from '../src/rh-proof.mjs';
+import { proveTx, txRecords, sample, rpc, chainOf, AGENT_WALLET, RH_CHAIN_ID } from '../src/rh-proof.mjs';
 
 const lines = readFileSync(new URL('../data/records.jsonl', import.meta.url), 'utf8').split('\n').filter(Boolean);
 
 export const tests = [
+  {
+    name: 'chainOf: an explicit chain wins; termix and sleeve imply their chain; anything else claims none',
+    fn() {
+      assert.deepEqual(chainOf({ engine: 'sleeve', chain: 'hyperevm' }), { chain: 'hyperevm', implied: false });
+      assert.deepEqual(chainOf({ engine: 'sleeve' }), { chain: 'elysium', implied: true });
+      assert.deepEqual(chainOf({ engine: 'termix' }), { chain: 'bsc', implied: true });
+      assert.deepEqual(chainOf({ engine: 'flock' }), { chain: null, implied: false });
+      const offRh = txRecords(lines).filter((x) => chainOf(x.rec.row).chain && chainOf(x.rec.row).chain !== 'robinhood').map((x) => x.rec.seq);
+      for (const seq of [2701, 2714, 2954]) assert.ok(offRh.includes(seq), `sleeve buy seq ${seq} must not count as a Robinhood Chain record`);
+      return `${offRh.length} tx records name or imply another chain`;
+    },
+  },
   {
     name: 'committed data/rh-proof.json refers to real records and tx hashes',
     fn() {
@@ -28,7 +40,8 @@ export const tests = [
     async fn() {
       return netOrSkip(async () => {
         assert.equal(parseInt(await rpc('eth_chainId', []), 16), RH_CHAIN_ID);
-        const items = txRecords(lines).filter((x) => !x.rec.row.engine?.startsWith('termix'));
+        // only records that claim Robinhood Chain (explicitly or by default); a sleeve/termix tx in the sample made this flaky (11-05)
+        const items = txRecords(lines).filter((x) => (chainOf(x.rec.row).chain ?? 'robinhood') === 'robinhood');
         const out = [];
         for (const { rec, tx } of sample(items, 3, Date.now() % 1e6)) {
           const r = await proveTx(rec, tx);

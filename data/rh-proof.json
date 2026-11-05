@@ -279,18 +279,18 @@
   {
    "seq": 444,
    "tx": "0xe4fedcd34525df47cb1a8d4bb4e5c6150a97b1864b753ad137593b23957e8221",
-   "chain": null,
+   "chain": "bsc",
    "what": "termix_claim",
    "result": "not_on_rh",
-   "note": "record names no other chain"
+   "note": "engine \"termix\" runs on bsc (implied: the record has no chain field)"
   },
   {
    "seq": 445,
    "tx": "0x807b6cd3a763fcff048bf5c3134fe2755f2120d4a575270ad43fa49208a80e6a",
-   "chain": null,
+   "chain": "bsc",
    "what": "termix_submit",
    "result": "not_on_rh",
-   "note": "record names no other chain"
+   "note": "engine \"termix\" runs on bsc (implied: the record has no chain field)"
   },
   {
    "seq": 454,
@@ -1325,10 +1325,10 @@
   {
    "seq": 2701,
    "tx": "0x50025f484720d4f2d735b7bf486bd83c868abf07736361ddcd4f354abdbcd0d4",
-   "chain": null,
+   "chain": "elysium",
    "what": "sleeve_buy",
    "result": "not_on_rh",
-   "note": "record names no other chain"
+   "note": "engine \"sleeve\" runs on elysium (implied: the record has no chain field)"
   },
   {
    "seq": 2713,
@@ -1346,10 +1346,10 @@
   {
    "seq": 2714,
    "tx": "0x0565765060647d3e48ea71f666993484228ee6c1306b0164f68de8c1af432b0d",
-   "chain": null,
+   "chain": "elysium",
    "what": "sleeve_buy",
    "result": "not_on_rh",
-   "note": "record names no other chain"
+   "note": "engine \"sleeve\" runs on elysium (implied: the record has no chain field)"
   },
   {
    "seq": 2731,
@@ -1666,10 +1666,10 @@
   {
    "seq": 2954,
    "tx": "0xbedc5791c2886a9e0d62f73894eb1ee4889de5925e943c6b18b05fbf7c8ee636",
-   "chain": null,
+   "chain": "elysium",
    "what": "sleeve_buy",
    "result": "not_on_rh",
-   "note": "record names no other chain"
+   "note": "engine \"sleeve\" runs on elysium (implied: the record has no chain field)"
   }
  ]
 }

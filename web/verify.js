@@ -11,7 +11,7 @@ import { readAllAnchors } from '../src/registry.mjs';
 
 // the append-only registry (contract/; deployed + locked on mainnet 2026-10-31: DeployContract + new() + DeleteKey in one tx)
 const REGISTRY = '08035588c459e514c632061fb4862fde62297571f1e44716e01bcc9913986e8a';
-const REGISTRY_CODE_HASH = 'HHWM5HdMW4A513pxMmXGRt168Uh4PeDiBcCps8DG34Vk';
+export const REGISTRY_CODE_HASH = 'HHWM5HdMW4A513pxMmXGRt168Uh4PeDiBcCps8DG34Vk';   // = contract/res/blackbox_registry.wasm (test/contract.test.mjs checks it)
 
 // the agent's own NEAR account that anchors the head (live on mainnet since 2026-10-31)
 const DEFAULT_ANCHOR_ACCOUNT = '00537bf24e164c18f3512de1040d34c88a11f37976a3ef6d4de673dc9cef6590';
@@ -206,6 +206,7 @@ async function main() {
   });
 
   async function runCheck(t, label) {
+    const h = document.getElementById('chain-title'); if (h) h.textContent = `1. Chain over ${label}`;
     setStatus('chain-status', 'busy', `recomputing ${label} with WebCrypto SHA-256…`);
     const t0 = performance.now();
     const { lines, structural, sparse } = await checkRecords(t, checkpoints);

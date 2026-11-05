@@ -51,8 +51,21 @@ export async function rpc(method, params, { url = RH_RPC, timeoutMs = 15000 } = 
   }
 }
 
+// Engines whose own transactions run on another chain. Their older records carry no `chain` field, and records are
+// immutable, so the chain is implied from the engine — but ONLY to explain a tx with no receipt here: termix's bridge
+// out of Robinhood Chain (seq 431) was sent here and verifies normally, with no chain label. Checked by hand on
+// 2026-11-05 on the chains themselves: termix seq 444 is on BNB Chain; sleeve seqs 2701, 2714 and 2954 are on Elysium;
+// all status 1 and sent by the agent wallet.
+export const ENGINE_CHAIN = { termix: 'bsc', sleeve: 'elysium' };
+export function chainOf(row) {
+  if (row.chain) return { chain: row.chain, implied: false };
+  const e = Object.keys(ENGINE_CHAIN).find((k) => String(row.engine ?? '').startsWith(k));
+  return e ? { chain: ENGINE_CHAIN[e], implied: true } : { chain: null, implied: false };
+}
+
 // One tx: receipt + block header -> result object.
 export async function proveTx(rec, txHash, opts = {}) {
+  const c = chainOf(rec.row);
   const base = { seq: rec.seq, tx: txHash, chain: rec.row.chain ?? null, what: rec.row.action || rec.row.label || rec.row.type };
   let receipt;
   try {
@@ -61,8 +74,9 @@ export async function proveTx(rec, txHash, opts = {}) {
     return { ...base, result: 'rpc_error', error: String(e.message).slice(0, 200) };
   }
   if (!receipt) {
-    const elsewhere = base.chain && base.chain !== 'robinhood';
-    return { ...base, result: 'not_on_rh', note: elsewhere ? `record says chain "${base.chain}"` : 'record names no other chain' };
+    const elsewhere = c.chain && c.chain !== 'robinhood';
+    const note = !elsewhere ? 'record names no other chain' : c.implied ? `engine "${rec.row.engine}" runs on ${c.chain} (implied: the record has no chain field)` : `record says chain "${c.chain}"`;
+    return { ...base, ...(elsewhere ? { chain: c.chain } : {}), result: 'not_on_rh', note };
   }
   const from = String(receipt.from).toLowerCase();
   const status = Number(receipt.status);

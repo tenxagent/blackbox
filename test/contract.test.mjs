@@ -4,6 +4,8 @@ import { assert, Skip } from './lib.mjs';
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { inspectWasm } from '../contract/scripts/inspect-wasm.mjs';
+import { REGISTRY_CODE_HASH as CLI_CODE_HASH } from '../src/registry-cli.mjs';
+import { REGISTRY_CODE_HASH as WEB_CODE_HASH } from '../web/verify.js';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const wasmPath = `${root}contract/res/blackbox_registry.wasm`;
@@ -23,7 +25,7 @@ function module({ results = [], imports = [], body = [0x0b], exports = [] }) {
 
 export const tests = [
   {
-    name: 'registry wasm: env-only imports, exact exports, MVP-only code, ≤ 30 KB, hashes match contract/README.md',
+    name: 'registry wasm: env-only imports, exact exports, MVP-only code, ≤ 30 KB, hashes match contract/README.md and the CLI/web constants',
     fn() {
       if (!existsSync(wasmPath)) throw new Skip('contract/res/blackbox_registry.wasm not built (bash contract/build.sh)');
       const info = inspectWasm(readFileSync(wasmPath));
@@ -34,6 +36,9 @@ export const tests = [
       assert.ok(readme.includes(info.sha256), `README does not list sha256 ${info.sha256}`);
       assert.ok(readme.includes(info.codeHash), `README does not list code hash ${info.codeHash}`);
       assert.ok(readme.includes(`${info.size.toLocaleString('en-US')} bytes`), `README does not list the size ${info.size}`);
+      // the CLI (step 10) and the web page compare the chain's code hash against these constants ⇒ they must be the hash of THIS wasm
+      assert.equal(CLI_CODE_HASH, info.codeHash, 'src/registry-cli.mjs REGISTRY_CODE_HASH is not the hash of contract/res/blackbox_registry.wasm');
+      assert.equal(WEB_CODE_HASH, info.codeHash, 'web/verify.js REGISTRY_CODE_HASH is not the hash of contract/res/blackbox_registry.wasm');
       return `${info.size} bytes, code hash ${info.codeHash}`;
     },
   },
