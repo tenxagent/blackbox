@@ -17,6 +17,19 @@ export const REGISTRY_CODE_HASH = 'HHWM5HdMW4A513pxMmXGRt168Uh4PeDiBcCps8DG34Vk'
 const DEFAULT_ANCHOR_ACCOUNT = '00537bf24e164c18f3512de1040d34c88a11f37976a3ef6d4de673dc9cef6590';
 
 export const RH_EXPLORER_TX = 'https://robinhoodchain.blockscout.com/tx/';
+export const RH_RPC = 'https://rpc.mainnet.chain.robinhood.com';   // public, CORS-enabled; the live nonce for the coverage panel
+
+/** Coverage panel (pure; tested in test/web.test.mjs): data/coverage.json from src/coverage.mjs, plus the wallet's live nonce if
+ *  the browser could read it. Never green while any transaction is unaccounted for: omissions are measured, not prevented. */
+export function coverageSummary(cov, liveNonce = null) {
+  const pct = cov.total ? ((100 * cov.unexplained) / cov.total).toFixed(1) : '0';
+  let text = `Of the ${cov.total} transactions the agent wallet had sent when data/coverage.json was written (${String(cov.at).replace('T', ' ').slice(0, 16)}Z), `
+    + `${cov.explainedTx} match a record's own tx hash and ${cov.explainedBatch} fall inside a recorded mint or crank batch; `
+    + `${cov.unexplained} (${pct}%) are not accounted for. A decision that sent no transaction cannot show up here.`;
+  if (Number.isSafeInteger(liveNonce)) text += liveNonce > cov.total ? ` Live: the wallet has sent ${liveNonce - cov.total} more since (nonce ${liveNonce}); node src/coverage.mjs re-counts.` : ` Live nonce ${liveNonce}: current.`;
+  else if (liveNonce === false) text += ' (The live nonce could not be read from this browser.)';
+  return { state: cov.unexplained === 0 ? 'ok' : 'idle', text };
+}
 export const NEAR = {
   testnet: { rpc: 'https://test.rpc.fastnear.com', socialDb: 'v1.social08.testnet', explorer: 'https://testnet.nearblocks.io/address/' },
   mainnet: { rpc: 'https://free.rpc.fastnear.com', socialDb: 'social.near', explorer: 'https://nearblocks.io/address/' },
@@ -193,6 +206,15 @@ async function main() {
     return;
   }
   try { proof = await (await fetch('../data/rh-proof.json', { cache: 'no-store' })).json(); } catch { /* optional */ }
+  (async () => {   // coverage panel: the committed reconciliation + the live nonce (both optional; never blocks the chain check)
+    let cov; try { cov = await (await fetch('../data/coverage.json', { cache: 'no-store' })).json(); } catch { setStatus('coverage-status', 'idle', 'data/coverage.json not found (run node src/coverage.mjs).'); return; }
+    let live = false;
+    try {
+      const r = await (await fetch(RH_RPC, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 'bb', method: 'eth_getTransactionCount', params: [cov.wallet, 'latest'] }) })).json();
+      if (typeof r.result === 'string') live = Number(BigInt(r.result));
+    } catch { /* stays false */ }
+    const s = coverageSummary(cov, live); setStatus('coverage-status', s.state, s.text);
+  })();
   const proofByTx = new Map((proof?.results || []).map((p) => [p.tx, p]));
 
   const recordsPath = relative(recordsParam) ?? '../data/records.jsonl';

@@ -1,13 +1,26 @@
 // The browser verifier's logic, run in Node (same module the page loads).
 import { assert, netOrSkip } from './lib.mjs';
 import { readFileSync } from 'node:fs';
-import { checkRecords, describe, readNearAnchor } from '../web/verify.js';
+import { checkRecords, describe, readNearAnchor, coverageSummary } from '../web/verify.js';
 import { canon } from '../src/canon.mjs';
 
 const text = readFileSync(new URL('../data/records.jsonl', import.meta.url), 'utf8');
 const cp = JSON.parse(readFileSync(new URL('../data/checkpoints.json', import.meta.url), 'utf8'));
 
 export const tests = [
+  {
+    name: 'coverage panel: committed numbers in the text, never green with unaccounted txs, live nonce delta',
+    fn() {
+      const cov = JSON.parse(readFileSync(new URL('../data/coverage.json', import.meta.url), 'utf8'));
+      const s = coverageSummary(cov);
+      assert.ok(s.text.includes(`Of the ${cov.total} transactions`) && s.text.includes(`${cov.unexplained} (`));
+      assert.equal(s.state, cov.unexplained === 0 ? 'ok' : 'idle');
+      assert.equal(coverageSummary({ ...cov, unexplained: 0 }).state, 'ok');
+      assert.ok(coverageSummary(cov, cov.total + 3).text.includes('has sent 3 more since'));
+      assert.ok(coverageSummary(cov, cov.total).text.includes(`Live nonce ${cov.total}: current.`));
+      assert.ok(coverageSummary(cov, false).text.includes('could not be read'));
+    },
+  },
   {
     name: 'page check: committed records => chain OK up to the last seq',
     async fn() {

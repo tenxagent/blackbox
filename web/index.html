@@ -86,7 +86,11 @@
   <p class="sub">A contract with no access keys and no delete or edit method: once a head is in it, nobody can change or remove it. Its code hash must equal the reproducible build in <code>contract/</code>.</p>
   <div class="status" id="registry-status" data-state="idle"><span class="msg">…</span></div>
 
-  <h2>4. Last 50 decisions</h2>
+  <h2>4. Coverage: wallet transactions vs records</h2>
+  <p class="sub">Every transaction the agent wallet sent should belong to a record (its own tx hash, or a recorded mint/crank batch). Reconciled by <code>node src/coverage.mjs</code>; the live nonce is read from Robinhood Chain.</p>
+  <div class="status" id="coverage-status" data-state="busy"><span class="msg">loading…</span></div>
+
+  <h2>5. Last 50 decisions</h2>
   <p class="sub">Newest first. Transaction links open the Robinhood Chain explorer; ✓ means <code>node src/rh-proof.mjs --all</code> found the receipt and it was sent from the agent wallet.</p>
   <ol id="decisions"></ol>
 </main>
