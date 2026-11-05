@@ -9,6 +9,15 @@ const cp = JSON.parse(readFileSync(new URL('../data/checkpoints.json', import.me
 
 export const tests = [
   {
+    name: 'decision list: gate rows read as allowed / REFUSED / bypassed',
+    fn() {
+      const g = (row) => describe({ row: { type: 'gate', ...row } });
+      assert.ok(g({ action: 'gate_allow', pendingUsd: 3, what: 'relay swap', anchorAgeH: 3.4, spent24h: 0 }).startsWith('Pre-sign gate allowed $3.00 (relay swap)'));
+      assert.ok(g({ action: 'gate_refuse', pendingUsd: 3, reasons: ['newest anchor is 21.0 h old'] }).includes('REFUSED $3.00: newest anchor is 21.0 h old.'));
+      assert.ok(g({ action: 'gate_bypass', pendingUsd: 1 }).includes('bypassed by hand'));
+    },
+  },
+  {
     name: 'coverage panel: committed numbers in the text, never green with unaccounted txs, live nonce delta',
     fn() {
       const cov = JSON.parse(readFileSync(new URL('../data/coverage.json', import.meta.url), 'utf8'));

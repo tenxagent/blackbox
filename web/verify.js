@@ -44,6 +44,13 @@ export function describe(rec) {
   const a = r.action;
   const on = r.slug ? ` on ${r.slug}` : '';
   switch (r.type) {
+    case 'gate': {   // src/gate.mjs decisions written by the agent before a deliberate send
+      const what = r.what ? ` (${r.what})` : '';
+      if (a === 'gate_allow') return `Pre-sign gate allowed ${usd(r.pendingUsd)}${what}: newest anchor ${r.anchorAgeH} h old, ${usd(r.spent24h)} already allowed in 24 h.`;
+      if (a === 'gate_refuse') return `Pre-sign gate REFUSED ${usd(r.pendingUsd)}${what}: ${(r.reasons || []).join('; ')}.`;
+      if (a === 'gate_bypass') return `Pre-sign gate bypassed by hand (--no-gate) for ${usd(r.pendingUsd)}${what}.`;
+      return `Pre-sign gate: ${String(a).replace(/_/g, ' ')}.`;
+    }
     case 'live':
       switch (a) {
         case 'approve_exact': return `Approved exactly ${r.amount} units of token ${short(r.token)} for spender ${short(r.spender)} (no unlimited approval).`;
