@@ -1,5 +1,5 @@
 // Pure helpers for the append-only anchor registry contract (contract/README.md): build the JSON args of
-// its methods, and parse its view results strictly. No I/O; not wired into anchor.mjs / cycle.mjs yet.
+// its methods, and parse its view results strictly. No I/O. Used by src/registry-cli.mjs, which cycle.mjs runs to anchor.
 //
 // The contract's JSON conventions: seq, count, block_height, from_index and limit are JSON numbers (seq is
 // capped at 2^53 - 1, so they are exact in JavaScript); timestamp_ns and storage_balance are decimal strings

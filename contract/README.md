@@ -138,7 +138,10 @@ Integers are little-endian unless marked `_be`. NEAR charges key + value + 40 by
   0.00298 NEAR. For `agent.near` it is 190 bytes, 0.0019 NEAR.
 - `anchor`: (11+A) + (56+U) + 40 bytes, for a URL of length U. For a 64-character account that is
   231 bytes (0.00231 NEAR) with a 60-byte URL and at most 471 bytes (0.00471 NEAR) with a 300-byte one.
-  Gas comes on top (not yet measured on chain, see Open questions).
+  The live anchors use a 112-byte URL: 283 bytes, 0.00283 NEAR each, paid from the agent's prepaid storage
+  (`storage_deposit`; `node src/registry-cli.mjs read` prints how many more anchors it covers).
+  Gas comes on top. Measured on mainnet 2026-11-05: `anchor` burned 9.36 Tgas (0.000183 NEAR,
+  tx `4Yb6wJHv…`), `storage_deposit` 9.03 Tgas (0.000151 NEAR, tx `A2hgM2GP…`).
 
 ## Deploy and lock
 
@@ -216,7 +219,7 @@ code hash equals the one above. Otherwise "the registry" could be a contract som
 
 ## Open questions
 
-- Gas per `anchor` and per full-page view, and nearcore's actual acceptance of the module. The import
-  names and signatures and the MVP-only code were checked against nearcore source, but nothing was
-  deployed. Run the testnet integration in the design doc before mainnet.
+- ~~Gas per `anchor`, and whether nearcore accepts the module.~~ Answered: deployed and locked on mainnet
+  2026-10-31 (one atomic tx: deploy + `new()` + delete the last key), anchoring 3× a day since. Gas is
+  measured above. Still open: gas for a full-page `get_anchors` view at the 100-item limit.
 - Whether `get_agents` should return more than account ids.

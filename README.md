@@ -266,7 +266,7 @@ shows `chain OK up to seq 12 of 12` (the empty `account` skips the NEAR check; t
 | `blackbox.config.json` | claude-10x's export rules: telemetry types, categories, private engines, sensitive and bulky field names, tx-hash fields, `agentId`. |
 | `src/export.mjs` | Ledger to decision records: decision filter, privacy filter, record wrapping, manifest. Generic; every rule comes from the config (`--config`). Operator-only. |
 | `src/rh-proof.mjs` | Robinhood Chain receipt check for every record with a tx hash. |
-| `src/registry-cli.mjs` | Reads the append-only registry (code hash, locked keys, every anchor) and checks it against local heads; writes `anchor` / `register` (dry unless `--send`). The operator's anchoring job runs this. |
+| `src/registry-cli.mjs` | Reads the append-only registry (code hash, locked keys, every anchor) and checks it against local heads; writes `anchor` / `register` / `deposit` (dry unless `--send`); `read` also prints how many more anchors the prepaid storage covers. The operator's anchoring job runs this. |
 | `src/coverage.mjs` | Reconciles the wallet's on-chain nonce with the records (own tx hashes + mint/crank batches); writes `data/coverage.json`. |
 | `src/near/keys.mjs` | ed25519 keys with `node:crypto`, base58 (hand-written), `ed25519:` strings, implicit account ids. |
 | `src/near/borsh.mjs` | Hand-written Borsh for `Transaction` (V0), actions, `SignedTransaction`; a reader for the same subset. |
@@ -500,7 +500,8 @@ testnet. The source is https://github.com/NearSocial/social-db, commit `b4a023d`
 - **The RH proof covers money records with a tx hash only** (the step 4 count under **Current numbers**).
   - Off-chain decisions (OpenSea offers, refusals, simulations, paper trades) cannot be
     proven to have happened. They can only be proven unedited after anchoring.
-  - Three BNB Chain txs are not checked.
+  - Eight records are on other chains and are not checked by `rh-proof`: four BNB Chain txs, one HyperEVM and three Elysium
+    (`not_on_rh` in `data/rh-proof.json`).
 - **Omissions are measured, not prevented.** `coverage.mjs` counts the wallet's transactions that
   no record accounts for (Coverage above), but it cannot say what an unlogged transaction was, and
   it covers the Robinhood Chain wallet only.

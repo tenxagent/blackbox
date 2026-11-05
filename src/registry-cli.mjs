@@ -5,10 +5,13 @@
 //   node src/registry-cli.mjs read --account ID [--network mainnet] [--dir data]
 //       the registry's code hash and keys (locked = no access keys), the agent entry, every anchor; checks that seq
 //       strictly increases and that each anchored head equals the local head at that seq (data/heads.txt).
-//       Exit 1 on any mismatch.
+//       Exit 1 on any mismatch. Also prints the agent's prepaid storage and how many more anchors it pays for.
 //   node src/registry-cli.mjs anchor --records-url URL [--seq N] [--dir data] [--send --i-understand-mainnet]
 //       anchor(seq, head, records_url) for the head at seq N (default: the final head in checkpoints.json)
 //   node src/registry-cli.mjs register --agent-id CAIP10 [--deposit 0.08] [--send --i-understand-mainnet]
+//   node src/registry-cli.mjs deposit --amount NEAR [--send --i-understand-mainnet]
+//       storage_deposit(): adds NEAR to the caller's prepaid storage (each anchor is paid from it). Needs a key
+//       that can attach a deposit (a function-call key cannot). At most 0.5 NEAR per call.
 //
 // Writes are dry runs unless --send (and --i-understand-mainnet on mainnet). The key comes from
 // BLACKBOX_NEAR_KEY_FILE (a file, or "-" for stdin) as {"account_id","private_key"}; it is never written anywhere.
@@ -30,6 +33,12 @@ const argv = process.argv.slice(2), cmd = argv[0];
 const opt = (k, d) => { const i = argv.indexOf('--' + k); return i >= 0 ? argv[i + 1] : d; };
 const has = (k) => argv.includes('--' + k);
 const near = (s) => { const [i, f = ''] = String(s).split('.'); return BigInt(i) * YOCTO_PER_NEAR + BigInt((f + '0'.repeat(24)).slice(0, 24)); };
+
+/** Bytes one anchor adds (contract.rs storage layout): key b"x:" + account + b":" + u64, value seq u64 | head 32 |
+ *  block_height u64 | timestamp_ns u64 | records_url, plus NEAR's 40 bytes per entry. Unit-tested. */
+export const anchorBytes = (account, recordsUrl) => 2 + account.length + 1 + 8 + (8 + 32 + 8 + 8 + Buffer.byteLength(recordsUrl)) + 40;
+/** How many more anchors of `bytes` each a prepaid storage balance (yocto) pays for. */
+export const anchorsLeft = (balanceYocto, bytes) => Number(BigInt(balanceYocto) / (BigInt(bytes) * 10n ** 19n));
 
 /** Pure check (unit-tested): anchors [{seq, head}] vs local heads (array, index = seq). */
 export function checkAnchors(anchors, heads) {
@@ -58,6 +67,8 @@ async function read() {
   const r = checkAnchors(anchors, heads);
   const last = anchors[anchors.length - 1];
   console.log(`agent        ${account}: ${agent.agent_id ?? agent.agentId ?? ''} · ${anchors.length} anchors, newest seq ${last?.seq} head ${last?.head.slice(0, 8)}…${last?.head.slice(-4)}`);
+  const bytes = anchorBytes(account, last?.recordsUrl ?? last?.records_url ?? ''), left = anchorsLeft(agent.storageBalance, bytes);
+  console.log(`storage      prepaid ${(Number(agent.storageBalance) / 1e24).toFixed(5)} NEAR ≈ ${left} more anchors at ${bytes} B each (top up: deposit --amount)`);
   console.log(`local check  ${r.checked} anchored heads compared with ${path.relative(ROOT, dir) || '.'}/heads.txt (${r.missingLocally} beyond the local records): ${r.ok ? 'ALL MATCH' : 'MISMATCH'}`);
   for (const p of r.problems) console.log('  ' + p);
   const locked = keys.length === 0 && acc.code_hash === REGISTRY_CODE_HASH;
@@ -92,7 +103,12 @@ async function main() {
     return write('anchor', anchorArgs({ seq, head: hit.head, recordsUrl: opt('records-url') }), 0n);
   }
   if (cmd === 'register') return write('register', registerArgs(opt('agent-id')), near(opt('deposit', '0.08')));
-  console.error('usage: read --account ID | anchor --records-url URL [--seq N] | register --agent-id CAIP10  (writes: --send --i-understand-mainnet)');
+  if (cmd === 'deposit') {
+    const a = opt('amount'), y = a && /^\d+(\.\d{1,24})?$/.test(a) ? near(a) : 0n;
+    if (!(y > 0n) || y > near('0.5')) { console.error('deposit --amount NEAR: more than 0 and at most 0.5'); process.exit(2); }
+    return write('storage_deposit', {}, y);
+  }
+  console.error('usage: read --account ID | anchor --records-url URL [--seq N] | register --agent-id CAIP10 | deposit --amount NEAR  (writes: --send --i-understand-mainnet)');
   process.exit(2);
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();
