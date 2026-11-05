@@ -22,6 +22,8 @@
 //        [--rows data/records.jsonl] [--account ID] [--network mainnet] [--max-anchor-age-h 20] [--max-daily-usd 30]
 //        [--fail-open] [--anchor-time ISO] [--now ISO]
 //   ⇒ one JSON line {allow, action, reasons, counterparties, anchorAgeH, spent24h, pendingUsd}; exit 0 = allow, 1 = refuse, 2 = usage.
+//   node src/gate.mjs coverage [--rows data/records.jsonl]
+//   ⇒ {sends, covered, bypassed, missing}: did every gated send since the gate went live have a gate decision? exit 1 if not.
 // --rows takes a JSONL file of records ({row: {...}}) or of raw ledger rows; --anchor-time skips the NEAR read (tests, demos).
 // Limits: this is a policy the agent's own code calls. A compromised key, or an operator who edits the calling code or
 // gate.policy.json, bypasses it. Provenance is what the caller says; the gate records it but cannot check it. A code hash
@@ -133,6 +135,35 @@ export async function readRegistryAnchor(account, network = 'mainnet') {
   } catch (e) { return { error: String(e.message ?? e).slice(0, 160) }; }
 }
 
+// Gate coverage (2026-11-06): the log itself shows whether the gate ran. Every money record of a gated tool written since the
+// first gate record must have a gate decision for it (gate_allow, or a recorded gate_bypass) shortly before it, one decision per
+// send. Kinds = the money rows the agent's gated tools write (lib/gate.mjs callers in claude-10x).
+export const GATED_SENDS = [
+  { engine: 'swap', action: 'relay_swap', what: /^relay swap /, tool: 'relay-swap.mjs' },
+  { engine: 'flock', action: 'giga_sell', what: /^relay swap /, tool: 'relay-swap.mjs --from giga' },
+  { engine: 'nearfund', action: 'near_fund_deposit', what: /^near fund /, tool: 'near-fund.mjs' },
+  { engine: 'sleeve', action: 'sleeve_buy', what: /^sleeve buy /, tool: 'sleeve/buy.mjs, sleeve/eleos.mjs' },
+];
+export const GATE_LIVE_SINCE = '2026-11-05T18:12:53.902Z';   // the first gate record (seq 3394)
+
+/** rows: records or raw ledger rows. → {since, sends, covered, bypassed, missing: [{seq, t, action}]}. Pure. */
+export function gateCoverage(rows, { since = GATE_LIVE_SINCE, windowMin = 15 } = {}) {
+  const sinceMs = Date.parse(since), used = new Set(), out = { since, windowMin, sends: 0, covered: 0, bypassed: 0, missing: [] };
+  const list = rows.map((x, i) => ({ i, seq: x?.seq ?? null, r: x?.row ?? x })).filter((x) => x.r && Date.parse(x.r.t) >= sinceMs);
+  for (const s of list) {
+    const kind = GATED_SENDS.find((k) => k.engine === s.r.engine && k.action === s.r.action);
+    if (!kind) continue;
+    out.sends++;
+    const t = Date.parse(s.r.t);
+    const g = list.filter((x) => x.i < s.i && !used.has(x.i) && x.r.engine === 'gate' && ['gate_allow', 'gate_bypass'].includes(x.r.action)
+      && kind.what.test(String(x.r.what ?? '')) && t - Date.parse(x.r.t) <= windowMin * 60e3).pop();
+    if (!g) { out.missing.push({ seq: s.seq, t: s.r.t, action: s.r.action }); continue; }
+    used.add(g.i);
+    if (g.r.action === 'gate_bypass') out.bypassed++; else out.covered++;
+  }
+  return out;
+}
+
 /** gate.policy.json (or another file) → policy object. */
 export function readPolicy(file = POLICY_FILE) {
   return JSON.parse(readFileSync(file, 'utf8'));
@@ -144,6 +175,12 @@ export function readRows(file) {
 
 async function main() {
   const argv = process.argv.slice(2), opt = (k, d) => { const i = argv.indexOf('--' + k); return i >= 0 ? argv[i + 1] : d; }, has = (k) => argv.includes('--' + k);
+  if (argv[0] === 'coverage') {
+    const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+    const c = gateCoverage(readRows(path.resolve(opt('rows', path.join(root, 'data', 'records.jsonl')))));
+    console.log(JSON.stringify(c));
+    process.exit(c.missing.length ? 1 : 0);
+  }
   if (argv[0] !== 'check' || opt('pending-usd') === undefined) { console.error('usage: node src/gate.mjs check --pending-usd X --to ADDR[,ADDR] [--chain C] [--policy FILE] [--rows FILE] [--account ID] [--max-anchor-age-h H] [--max-daily-usd USD] [--fail-open] [--anchor-time ISO] [--now ISO]'); process.exit(2); }
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
   const nowMs = opt('now') ? Date.parse(opt('now')) : Date.now();

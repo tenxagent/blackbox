@@ -1,6 +1,7 @@
 // src/gate.mjs evaluate(): the pre-sign gate's three rules on hand-built inputs (no network).
 import { assert } from './lib.mjs';
-import { evaluate, spentLast24h, priorApproved, readPolicy } from '../src/gate.mjs';
+import { evaluate, spentLast24h, priorApproved, readPolicy, gateCoverage } from '../src/gate.mjs';
+import { readFileSync } from 'node:fs';
 
 // rule 3 fixtures: made-up addresses (0x1…, 0x2…), a code hash, and one blocklisted 0xbad… address
 const RELAY = '0x' + '1'.repeat(40), HUMAN = '0x' + '2'.repeat(40), BAD = '0x' + 'bad'.repeat(13) + 'b', NEW = '0x' + '3'.repeat(40), HASH = '0x' + 'ab'.repeat(32);
@@ -88,5 +89,22 @@ export const tests = [
         assert.ok(!seen.has(e.chain + e.address)); seen.add(e.chain + e.address);
       }
       for (const k of ['trustedApis', 'humanApproved', 'block']) assert.ok(Array.isArray(pol[k]), k);
+    } },
+  { name: 'gate coverage: every gated send needs its own gate decision shortly before it; the committed log has none missing',
+    fn() {
+      const g = (t, what, action = 'gate_allow') => ({ t, engine: 'gate', type: 'gate', action, what });
+      const swap = (t) => ({ t, engine: 'swap', type: 'live', action: 'relay_swap' });
+      const since = '2026-11-06T00:00:00Z';
+      const ok = gateCoverage([g('2026-11-06T01:00:00Z', 'relay swap 1 USDG -> ETH'), swap('2026-11-06T01:00:20Z')], { since });
+      assert.deepEqual([ok.sends, ok.covered, ok.missing.length], [1, 1, 0]);
+      const twice = gateCoverage([g('2026-11-06T01:00:00Z', 'relay swap 1'), swap('2026-11-06T01:00:20Z'), swap('2026-11-06T01:01:00Z')], { since });
+      assert.equal(twice.missing.length, 1);                                    // one decision covers one send
+      assert.equal(gateCoverage([g('2026-11-06T01:00:00Z', 'relay swap 1'), swap('2026-11-06T01:20:00Z')], { since }).missing.length, 1);   // > 15 min
+      assert.equal(gateCoverage([g('2026-11-06T01:00:00Z', 'near fund 1 USDG'), swap('2026-11-06T01:00:20Z')], { since }).missing.length, 1); // other kind
+      assert.equal(gateCoverage([g('2026-11-06T01:00:00Z', 'relay swap 1', 'gate_bypass'), swap('2026-11-06T01:00:20Z')], { since }).bypassed, 1);
+      assert.equal(gateCoverage([swap('2026-11-05T23:00:00Z')], { since }).sends, 0);   // before the gate went live
+      const rows = readFileSync(new URL('../data/records.jsonl', import.meta.url), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+      const c = gateCoverage(rows);
+      assert.ok(c.sends >= 2); assert.equal(c.missing.length, 0, JSON.stringify(c.missing));
     } },
 ];

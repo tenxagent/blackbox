@@ -10,12 +10,13 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { gateCoverage, readRows } from './gate.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const rd = (p) => readFileSync(path.join(ROOT, p), 'utf8');
 const arg = (k) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : null; };
 
-export function block({ records, verifyHeads, verifyCk, tests, proof, coverage, final }) {
+export function block({ records, verifyHeads, verifyCk, tests, proof, coverage, final, gateCov = null }) {
   const t = tests && tests.match(/(\d+) passed, (\d+) failed, (\d+) skipped/);
   const total = t ? Number(t[1]) + Number(t[2]) + Number(t[3]) : null;
   const L = [
@@ -27,6 +28,7 @@ export function block({ records, verifyHeads, verifyCk, tests, proof, coverage, 
     `- Steps 6 and 8: \`chain OK up to seq ${records} of ${records}\`; the newest head in \`data/checkpoints.json\` is seq ${final.seq}, \`${final.head.slice(0, 8)}…${final.head.slice(-4)}\` (each cycle anchors it on NEAR right after the data commit; this line is read from the local file, so step 8 and step 10 are what show NEAR holds the same head).`,
     `- Step 4: \`--all\` checks ${proof.total} tx records: ${Object.entries(proof.counts).map(([k, v]) => `${k}: ${v}`).join(' · ')}.`,
     coverage ? `- Coverage (\`node src/coverage.mjs\`): the wallet had sent ${coverage.total} transactions; ${coverage.explainedTx} match a record's own tx hash, ${coverage.explainedBatch} fall inside recorded mint/crank batches, ${coverage.unexplained} are not accounted for (see Limits).` : null,
+    gateCov ? `- Gate coverage (\`node src/gate.mjs coverage\`): since the gate went live (${gateCov.since}), ${gateCov.sends} gated send${gateCov.sends === 1 ? '' : 's'} in the records; ${gateCov.covered} had a \`gate_allow\` just before ${gateCov.sends === 1 ? 'it' : 'them'}, ${gateCov.bypassed} a recorded bypass, ${gateCov.missing.length} none.` : null,
     '<!-- numbers:end -->',
   ].filter((x) => x !== null);
   return L.join('\n');
@@ -44,7 +46,8 @@ function main() {
   const final = JSON.parse(rd('data/checkpoints.json')).final;
   let tests = arg('tests');
   if (!tests) { const r = spawnSync(process.execPath, ['test/run.mjs'], { cwd: ROOT, encoding: 'utf8' }); tests = (r.stdout + r.stderr).trim().split('\n').pop(); }
-  const b = block({ records, verifyHeads, verifyCk, tests, proof, coverage, final });
+  const gateCov = gateCoverage(readRows(path.join(ROOT, 'data', 'records.jsonl')));
+  const b = block({ records, verifyHeads, verifyCk, tests, proof, coverage, final, gateCov });
   const readme = rd('README.md');
   const re = /<!-- numbers:start[\s\S]*?<!-- numbers:end -->/;
   if (!re.test(readme)) throw new Error('README.md has no <!-- numbers:start --> … <!-- numbers:end --> block');

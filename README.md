@@ -93,6 +93,7 @@ NEAR does four things here that the agent's own chain (Robinhood Chain, an EVM c
 | spend more than the daily cap | refused, for sends that go through the gate | `src/gate.mjs` rule 2 (step 11) |
 | make the agent pay an address planted in a message (prompt injection) | refused as `gate_warn` until a human approves the address; the $30 cap alone would have let it through | `src/gate.mjs` rule 3 (steps 11–12, **Attack demo**) |
 | swap the code behind an allow-listed contract | `warn`, so refused: the agent checks each allow-listed contract's code hash on every gated send | rule 3; not for upgradeable proxies (Limits) |
+| skip the gate call in a gated tool's code | shows up, if the tool still logs its send: that money record then has no gate decision before it | `node src/gate.mjs coverage` (Current numbers) |
 
 ## Pre-sign gate: no anchoring, no spending, no unknown payees (`src/gate.mjs`)
 
@@ -128,6 +129,12 @@ function `evaluate()`, tested on hand-built inputs (`test/gate.test.mjs`); the a
 The first real gated send was a 1 USDG → ETH swap on 2026-11-05: `gate_allow` at 18:12:53Z (seq 3394), then the swap's
 two transactions as a `relay_swap` record (seq 3395); a 1 USDG NEAR funding followed (`gate_allow`, seq 3397). They were
 anchored with seq 3453. Before them the log held no gate records.
+
+**The log shows whether the gate ran.** `node src/gate.mjs coverage` goes through the records: every money record of a
+gated tool (`relay_swap`, `giga_sell`, `near_fund_deposit`, `sleeve_buy`) written since the first gate record must have
+its own gate decision (`gate_allow`, or a recorded `gate_bypass`) of the same kind at most 15 minutes before it. One decision
+covers one send. Any send without one is listed and the command exits 1. So a version of the agent that skipped the call
+but still logged its sends would show up in the public log (Current numbers has the count).
 
 ## Attack demo: a prompt-injected agent tries to pay a bad address (`demo/attack/`)
 
@@ -199,17 +206,18 @@ and plain browser JavaScript. Run all commands from the repository root.
 | 8 | `node src/anchor.mjs --read --network mainnet --account 00537bf24e164c18f3512de1040d34c88a11f37976a3ef6d4de673dc9cef6590` | Reads the agent's anchor from `social.near` and checks it against the local records: `anchored on mainnet (social.near) by 00537bf2…6590: seq <anchored seq> head <8 hex>…<4 hex> …` then `local records match the anchor through seq <anchored seq>; all claims match`. |
 | 9 | Open `http://localhost:8000/web/?network=mainnet&account=00537bf24e164c18f3512de1040d34c88a11f37976a3ef6d4de673dc9cef6590` | The same check in the browser: the page reads `<account>/blackbox` from SocialDB through NEAR RPC and reports whether the loaded records match the anchored head. |
 | 10 | `node src/registry-cli.mjs read --account 00537bf24e164c18f3512de1040d34c88a11f37976a3ef6d4de673dc9cef6590` | Reads the append-only registry on mainnet: `code hash HHWM5HdM… (= contract/res wasm), access keys 0 (locked)`, the agent's anchors, then `local check … ALL MATCH` against `data/heads.txt`. Exit code 0. Unlike step 8 (SocialDB, which its owner can overwrite), nobody can change these anchors. |
-| 11 | `node src/gate.mjs check --pending-usd 3 --to 0x5567954cd026cebfe486062cb75848e0f1c12e58 --chain robinhood --account 00537bf24e164c18f3512de1040d34c88a11f37976a3ef6d4de673dc9cef6590`, then the same with `--to 0x000000000000000000000000000000000000dEaD`, then with `--anchor-time 2026-11-01T00:00:00Z` instead of `--account` | The pre-sign gate. The first reads the newest registry anchor on mainnet and prints `{"allow":true,"action":"gate_allow",…,"why":"allow-listed: Relay approvalProxy (v3.2) on Robinhood Chain"…}` (exit 0) while the agent is anchoring. The second prints `"action":"gate_warn"` with `unknown counterparty: … ⇒ ask a human` (exit 1). The third pretends the newest anchor is from 11-01 and prints `newest anchor is <N> h old (> 20 h): the log is not being anchored` (exit 1). `--pending-usd 40` is refused by the $30 cap; no `--to` at all is refused. (The agent's wrapper also checks code hashes; this CLI does not read them.) |
+| 11 | `node src/gate.mjs check --pending-usd 3 --to 0x5567954cd026cebfe486062cb75848e0f1c12e58 --chain robinhood --account 00537bf24e164c18f3512de1040d34c88a11f37976a3ef6d4de673dc9cef6590`, then the same with `--to 0x000000000000000000000000000000000000dEaD`, then with `--anchor-time 2026-11-01T00:00:00Z` instead of `--account` | The pre-sign gate. The first reads the newest registry anchor on mainnet and prints `{"allow":true,"action":"gate_allow",…,"why":"allow-listed: Relay approvalProxy (v3.2) on Robinhood Chain"…}` (exit 0) while the agent is anchoring. The second prints `"action":"gate_warn"` with `unknown counterparty: … ⇒ ask a human` (exit 1). The third pretends the newest anchor is from 11-01 and prints `newest anchor is <N> h old (> 20 h): the log is not being anchored` (exit 1). `--pending-usd 40` is refused by the $30 cap; no `--to` at all is refused. (The agent's wrapper also checks code hashes; this CLI does not read them.) Last, `node src/gate.mjs coverage` prints `{"sends":<n>,"covered":<n>,"bypassed":0,"missing":[]}` (exit 0): every gated send in the records had a gate decision. |
 | 12 | `node demo/attack/run.mjs`, then `node demo/attack/escapes.mjs` | The attack demo (section above): `GATE_WARN` for the injected payee although rules 1 and 2 pass, `GATE_REFUSE` with the demo blocklist, `GATE_ALLOW` for the Relay control, `verify: OK`, then `FAILS at seq 1` after the refusal is edited into an approval. The second prints the 17 escape attempts and ends `14 of 17 attempts refused by the gate; 3 not stopped by it`. No network. |
 
 <!-- numbers:start (generated by src/readme-numbers.mjs from the committed data; do not edit by hand) -->
 **Current numbers** (data through 2026-11-05T22:30:22.013Z, record 3453):
 
-- Step 1: 123 tests. A judge sees `122 passed, 0 failed, 1 skipped`: the one SKIP is the operator check that needs the private ledger.
+- Step 1: 124 tests. A judge sees `123 passed, 0 failed, 1 skipped`: the one SKIP is the operator check that needs the private ledger.
 - Step 2: `heads.txt: OK, all 3453 heads match` and `checkpoints.json: OK through seq 3453 (262 claims)`.
 - Steps 6 and 8: `chain OK up to seq 3453 of 3453`; the newest head in `data/checkpoints.json` is seq 3453, `07525618…cbc1` (each cycle anchors it on NEAR right after the data commit; this line is read from the local file, so step 8 and step 10 are what show NEAR holds the same head).
 - Step 4: `--all` checks 137 tx records: verified: 129 · not_on_rh: 8.
 - Coverage (`node src/coverage.mjs`): the wallet had sent 697 transactions; 123 match a record's own tx hash, 564 fall inside recorded mint/crank batches, 10 are not accounted for (see Limits).
+- Gate coverage (`node src/gate.mjs coverage`): since the gate went live (2026-11-05T18:12:53.902Z), 2 gated sends in the records; 2 had a `gate_allow` just before them, 0 a recorded bypass, 0 none.
 <!-- numbers:end -->
 
 The full pipeline for the operator, who has the private ledger:
