@@ -41,6 +41,13 @@ Checks:
 - `cd contract && cargo test --offline` runs 25 native tests. The exported methods run against an
   in-memory mock of the NEAR host (`src/mock.rs`): storage with nearcore's 40-byte per-record accounting,
   registers, block height/time, deposits, logs, view-call prohibitions, and the revert of a failed call.
+- `node test/run.mjs` (repo root, no Rust needed) also **executes `res/blackbox_registry.wasm`**, the exact
+  bytes deployed on mainnet. `test/contract-wasm.test.mjs` gives it a JavaScript model of the same 14 host
+  functions (a port of `src/mock.rs`: a fresh instance per call as on NEAR, failed calls reverted, view-call
+  prohibitions raised as host violations) and replays the 23 contract cases of `src/tests.rs`. The other 2
+  Rust tests unit-test the internal JSON reader, which the replay exercises through every method. As a
+  check that the replay has teeth: setting the model's attached deposit to 0 fails all 23 cases, ignoring
+  the block time fails the 3 that read it, and a 41-byte record overhead fails 7.
 - `node contract/scripts/inspect-wasm.mjs` checks the built file. The imports must be exactly the 14 `env`
   functions below, and the exports exactly `memory` plus the 7 methods. It also decodes every function
   body and checks each opcode, block type and function type against the MVP set: no multi-value,
