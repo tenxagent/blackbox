@@ -162,7 +162,9 @@ if (process.argv[1] && import.meta.url === new URL(`file://${path.resolve(proces
     const written = a.block ? ` (written in block ${a.block} at ${await blockTime(urls, a.block)} by the chain's clock)` : '';
     console.log(`anchored on ${network} (${net.socialDb}) by ${account}: seq ${a.seq} head ${a.head} t ${a.t}${written}`);
     const lines = splitLines(readFileSync(path.join(dataDir, 'records.jsonl'), 'utf8'));
-    const claims = [{ seq: a.seq, head: a.head }, ...a.anchors.map(x => ({ seq: x.seq, head: x.head }))];
+    // the history already contains the newest anchor ⇒ drop exact repeats (same seq AND head) so the count is right (re-screen 11-05 X-8);
+    // a same-seq / different-head pair stays in, so it still fails verification
+    const claims = [...new Map([{ seq: a.seq, head: a.head }, ...a.anchors.map(x => ({ seq: x.seq, head: x.head }))].map(c => [`${c.seq}:${c.head}`, c])).values()];
     if (a.anchors.length) console.log(`anchor history: ${a.anchors.map(x => `seq ${x.seq}${x.block ? ` @${x.block}` : ''}`).join(', ')}`);
     let localAgent = AGENT_ID;
     try { localAgent = loadCheckpoints(dataDir).agentId || AGENT_ID; } catch { /* no checkpoints.json: the constant */ }
