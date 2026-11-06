@@ -15,6 +15,10 @@ change or remove it. Its code hash equals the reproducible build in [`contract/`
 
 **Demo video (66 s):** https://x.com/mr_ghdc/status/2116851371207012835 (the operator's NEAR HACKATHON post).
 
+**Follow-up (45 s), anchored before it is signed:** https://x.com/mr_ghdc/status/2118768584549704146 (the first live run:
+decision #3697 on the NEAR registry, then send #3699's two transactions; every time in it is read from the records, the
+registry and the chain's blocks; how it works: "Anchored before it is signed" under the pre-sign gate below).
+
 **Live demo: https://tenxagent.github.io/blackbox/web/**. It recomputes the whole chain
 in your browser and checks it against the head the agent anchored on NEAR mainnet,
 then shows where the money of each gated send actually went (section 5). Nothing to install.
