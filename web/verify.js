@@ -155,6 +155,7 @@ export function describe(rec) {
         case 'near_hackathon_submitted': return `Submitted ${r.project} to the NEAR hackathon (${r.repo}).`;
         case 'blackbox_first_anchor': return `First anchor on NEAR: wrote the head after record ${r.seq} to SocialDB (read back: ${r.readback}).`;
         case 'blackbox_anchor': return `Anchored the head after record ${r.seq} on NEAR (SocialDB).`;
+        case 'anchor_before_send': return `Anchored the head after record ${r.seq} on NEAR (SocialDB and the registry) BEFORE signing the send that gate decision #${r.decision_seq} allowed.`;
         case 'blackbox_anchor_failed': return `Anchoring on NEAR failed: ${r.status}.`;
         case 'social_set': return 'Wrote its anchor entry to NEAR SocialDB.';
         case 'socialdb_storage_deposit': return `Prepaid ${r.near} NEAR of SocialDB storage.`;
