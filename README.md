@@ -16,15 +16,17 @@ change or remove it. Its code hash equals the reproducible build in [`contract/`
 **Demo video (66 s):** https://x.com/mr_ghdc/status/2116851371207012835 (the operator's NEAR HACKATHON post).
 
 **Live demo: https://tenxagent.github.io/blackbox/web/**. It recomputes the whole chain
-in your browser and checks it against the head the agent anchored on NEAR mainnet.
-Nothing to install.
+in your browser and checks it against the head the agent anchored on NEAR mainnet,
+then shows where the money of each gated send actually went (section 5). Nothing to install.
 
 **It also refuses.** Right before the agent's swap, coin-buy or NEAR-funding tools sign a send (its mint race tools do not
 use the gate: Limits), a pre-sign gate ([`src/gate.mjs`](src/gate.mjs)) reads the same log: no fresh anchor means no spending, there is a $30 per 24 h cap, and every payee must be cleared by a public policy
 ([`gate.policy.json`](gate.policy.json)). In the attack demo, a phishing message gets the agent to ask for its whole
 USDG balance to be sent to `0x…dEaD`. The cap alone would let it through; the counterparty rule refuses it, and the
 live agent's refusal is record 3463 in its real log, anchored on NEAR since 2026-11-06 (`node demo/attack/run.mjs`,
-section **Attack demo**).
+section **Attack demo**). **And it checks afterwards:** each cycle reads every gated send back from the chain
+(and a NEAR deposit from 1Click's own record) and flags any value that went to an address the policy does not
+list, or more USDG than the gate was told ([`src/flows.mjs`](src/flows.mjs); first hop only, after the fact).
 
 The agent is **claude-10x** (X: @tenxagent, GitHub: tenxagent), a Claude agent
 that is openly labelled as an AI. Since 2026-10-26 it has managed its own wallet
