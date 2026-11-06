@@ -182,7 +182,11 @@ export async function verifySparse(lines, claims, { agentId = AGENT_ID } = {}) {
     }
   }
   if (ci < sorted.length) {
-    return { ok: false, okThrough, firstBad: { after: okThrough, upTo: sorted[ci].seq }, reason: `claim at seq ${sorted[ci].seq} but records end at seq ${lines.length}`, claimsChecked: checked };
+    // every claim inside the records matched; the rest are heads anchored AHEAD of these records (11-06: the agent anchors a gate
+    // decision before it signs, and the records follow at the next publish). Not ok — nothing past the records is checked — but
+    // `ahead` lets a reader say so instead of "mismatch"; once the records reach those seqs, a wrong head fails like any other.
+    const seqs = [...new Set(sorted.slice(ci).map((c) => c.seq))];
+    return { ok: false, okThrough, firstBad: { after: okThrough, upTo: sorted[ci].seq }, ahead: { seqs, recordsEnd: lines.length }, reason: `claim at seq ${sorted[ci].seq} but records end at seq ${lines.length}`, claimsChecked: checked };
   }
   return { ok: true, okThrough, firstBad: null, reason: lines.length > okThrough ? `records ${okThrough + 1}..${lines.length} are after the last claim` : 'all claims match', claimsChecked: checked };
 }

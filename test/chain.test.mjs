@@ -150,6 +150,29 @@ export const tests = [
       assert.match(r.reason, /31\.\.40/);
     },
   },
+  {
+    name: 'sparse verify: a head anchored AHEAD of the records is reported as ahead (not ok), and still fails once a wrong record arrives',
+    async fn() {
+      const lines = linesOf(sample());
+      const res = await buildLines(lines);                          // the agent anchored seq 40 before publishing 31..40
+      const claims = [{ seq: 0, head: res.genesis }, { seq: 30, head: res.heads[30] }, res.final];
+      const early = await verifySparse(lines.slice(0, 30), claims);
+      assert.equal(early.ok, false);
+      assert.equal(early.okThrough, 30);
+      assert.deepEqual(early.ahead, { seqs: [40], recordsEnd: 30 });
+      const later = await verifySparse(lines, claims);              // published: now checked
+      assert.equal(later.ok, true);
+      const bad = [...lines]; bad[35] = bad[35].replace('"why":"r36"', '"why":"rX"');
+      const wrong = await verifySparse(bad, claims);                 // published, but not what was anchored
+      assert.equal(wrong.ok, false);
+      assert.equal(wrong.ahead, undefined);
+      assert.deepEqual(wrong.firstBad, { after: 30, upTo: 40 });
+      const part = await verifySparse(bad.slice(0, 36), claims);    // 31..36 published, no claim covers them yet: ahead, never ok
+      assert.equal(part.ok, false);
+      assert.equal(part.okThrough, 30);
+      assert.deepEqual(part.ahead, { seqs: [40], recordsEnd: 36 });
+    },
+  },
 ];
 
 // The committed data: what a judge checks first.

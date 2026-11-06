@@ -1,13 +1,34 @@
 // The browser verifier's logic, run in Node (same module the page loads).
 import { assert, netOrSkip } from './lib.mjs';
 import { readFileSync } from 'node:fs';
-import { checkRecords, describe, readNearAnchor, coverageSummary, flowsSummary, nearRpc } from '../web/verify.js';
+import { checkRecords, describe, readNearAnchor, coverageSummary, flowsSummary, nearRpc, anchorState, AHEAD_MAX_H } from '../web/verify.js';
+import { verifySparse, splitLines } from '../src/chain.mjs';
 import { canon } from '../src/canon.mjs';
 
 const text = readFileSync(new URL('../data/records.jsonl', import.meta.url), 'utf8');
 const cp = JSON.parse(readFileSync(new URL('../data/checkpoints.json', import.meta.url), 'utf8'));
 
 export const tests = [
+  {
+    name: 'NEAR panels: a head anchored ahead of the published records is amber (never green), red after 24 h or on a real mismatch',
+    async fn() {
+      const lines = splitLines(text);
+      const n = lines.length, now = Date.parse('2026-11-06T15:00:00Z');
+      const ahead = await verifySparse(lines, [cp.final, { seq: n + 7, head: 'ab'.repeat(32) }], { agentId: cp.agentId });
+      assert.deepEqual(ahead.ahead, { seqs: [n + 7], recordsEnd: n });
+      const v = anchorState(ahead, '2026-11-06T14:20:00Z', now);
+      assert.equal(v.state, 'ahead');
+      assert.ok(v.text.includes(`seq ${n + 7} was anchored 40 min ago, AHEAD of the published records (they end at seq ${n})`), v.text);
+      assert.equal(anchorState(ahead, null, now).state, 'ahead');                    // age unknown: still amber, not green
+      const old = anchorState(ahead, new Date(now - (AHEAD_MAX_H + 1) * 3.6e6).toISOString(), now);
+      assert.equal(old.state, 'bad');
+      assert.match(old.text, /still not published/);
+      const wrong = await verifySparse(lines, [{ seq: n, head: 'cd'.repeat(32) }], { agentId: cp.agentId });
+      assert.deepEqual(anchorState(wrong, null, now), { state: 'bad' });              // a head that differs inside the records: red
+      const fine = await verifySparse(lines, [cp.final], { agentId: cp.agentId });
+      assert.deepEqual(anchorState(fine), { state: 'ok' });
+    },
+  },
   {
     name: 'decision list: gate rows read as allowed / REFUSED / bypassed',
     fn() {

@@ -8,18 +8,18 @@
 <style>
   :root {
     --bg: #f7f7f5; --fg: #1d1d1b; --muted: #6b6b66; --card: #ffffff; --line: #e2e1dc;
-    --ok: #1f7a3d; --ok-bg: #e7f4ea; --bad: #a32020; --bad-bg: #fbeaea; --busy: #7a5a00; --busy-bg: #fbf3df;
+    --ok: #1f7a3d; --ok-bg: #e7f4ea; --bad: #a32020; --bad-bg: #fbeaea; --busy: #7a5a00; --busy-bg: #fbf3df; --ahead: #8a4b00; --ahead-bg: #fdeedd;
     --accent: #2f5bd3; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --bg: #141413; --fg: #ecebe6; --muted: #9a9993; --card: #1e1e1c; --line: #33332f;
-      --ok: #7fd49a; --ok-bg: #16301f; --bad: #f19a9a; --bad-bg: #3a1a1a; --busy: #e8c56a; --busy-bg: #33290f; --accent: #8fb0ff;
+      --ok: #7fd49a; --ok-bg: #16301f; --bad: #f19a9a; --bad-bg: #3a1a1a; --busy: #e8c56a; --busy-bg: #33290f; --ahead: #f2a65a; --ahead-bg: #3a2610; --accent: #8fb0ff;
     }
   }
   :root[data-theme="dark"] {
     --bg: #141413; --fg: #ecebe6; --muted: #9a9993; --card: #1e1e1c; --line: #33332f;
-    --ok: #7fd49a; --ok-bg: #16301f; --bad: #f19a9a; --bad-bg: #3a1a1a; --busy: #e8c56a; --busy-bg: #33290f; --accent: #8fb0ff;
+    --ok: #7fd49a; --ok-bg: #16301f; --bad: #f19a9a; --bad-bg: #3a1a1a; --busy: #e8c56a; --busy-bg: #33290f; --ahead: #f2a65a; --ahead-bg: #3a2610; --accent: #8fb0ff;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
@@ -33,6 +33,7 @@
   .status[data-state="ok"] { background: var(--ok-bg); border-color: var(--ok); color: var(--ok); }
   .status[data-state="bad"] { background: var(--bad-bg); border-color: var(--bad); color: var(--bad); }
   .status[data-state="busy"] { background: var(--busy-bg); border-color: var(--busy); color: var(--busy); }
+  .status[data-state="ahead"] { background: var(--ahead-bg); border-color: var(--ahead); color: var(--ahead); border-style: dashed; }
   .status .label { font-weight: 600; margin-right: 6px; }
   dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 8px 0; }
   dt { color: var(--muted); }

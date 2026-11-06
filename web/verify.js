@@ -34,6 +34,19 @@ export function coverageSummary(cov, liveNonce = null) {
 /** Where-the-money-went panel (pure; tested in test/web.test.mjs): data/flows.json as src/flows.mjs wrote it in the last cycle.
  *  The page reports that committed result; it does not read receipts itself. Green only when sends were checked with no finding
  *  (an unread tx is a finding) and every gated send had a gate decision. First hop only, and after the fact: it detects, it does not prevent. */
+// 11-06 anchor-before-send: the agent anchors a gate decision on NEAR BEFORE it signs, so for a while the newest anchored heads are
+// AHEAD of the published records. That is amber, never green: those heads are checked once the next cycle publishes the records
+// (a wrong head is red then). Still ahead after AHEAD_MAX_H (the cycle publishes every 8 h) = the records were never published ⇒ red.
+export const AHEAD_MAX_H = 24;
+export function anchorState(s, oldestAheadTime = null, now = Date.now()) {
+  if (s.ok) return { state: 'ok' };
+  if (!s.ahead) return { state: 'bad' };
+  const ageH = oldestAheadTime ? (now - Date.parse(oldestAheadTime)) / 3.6e6 : null;
+  const seqs = s.ahead.seqs.join(', ');
+  if (ageH != null && ageH > AHEAD_MAX_H) return { state: 'bad', text: `head(s) at seq ${seqs} were anchored ${ageH.toFixed(1)} h ago and the records they cover are still not published (limit ${AHEAD_MAX_H} h)` };
+  return { state: 'ahead', text: `${s.ahead.seqs.length === 1 ? 'the head' : 'heads'} at seq ${seqs} ${s.ahead.seqs.length === 1 ? 'was' : 'were'} anchored${ageH != null ? ` ${ageH < 1 ? `${Math.round(ageH * 60)} min` : `${ageH.toFixed(1)} h`} ago` : ''}, AHEAD of the published records (they end at seq ${s.ahead.recordsEnd}): the agent anchors a gate decision before it signs and the next cycle publishes the records. Not checked until then; a mismatch then is red, and still unpublished after ${AHEAD_MAX_H} h is red` };
+}
+
 export function flowsSummary(fl) {
   const when = (s) => String(s ?? '').replace('T', ' ').slice(0, 16);
   const n = (k, w) => `${k} ${w}${k === 1 ? '' : 's'}`;
@@ -369,7 +382,9 @@ async function main() {
       if (!r.anchors.length) { setStatus('registry-status', 'bad', `the locked registry holds no heads for ${account}.`); return; }
       const s = await verifySparse(state.lines, r.anchors.map((x) => ({ seq: x.seq, head: x.head })), { agentId: checkpoints.agentId });
       const span = `${r.anchors.length} heads (seq ${r.anchors[0].seq} → ${r.anchors[r.anchors.length - 1].seq}), first written ${r.anchors[0].time}, last ${r.anchors[r.anchors.length - 1].time} by the contract's clock`;
-      if (s.ok) setStatus('registry-status', 'ok', `Registry locked (0 access keys, code hash ${short(REGISTRY_CODE_HASH, 6)} = contract/ build) holds ${span}. All match these records. ${s.reason}.`);
+      const v = anchorState(s, r.anchors.find((x) => x.seq === s.ahead?.seqs[0])?.time ?? null);
+      if (v.state === 'ok') setStatus('registry-status', 'ok', `Registry locked (0 access keys, code hash ${short(REGISTRY_CODE_HASH, 6)} = contract/ build) holds ${span}. All match these records. ${s.reason}.`);
+      else if (v.text) setStatus('registry-status', v.state, `Registry locked (0 access keys) holds ${span}. These records match every head through seq ${s.okThrough}; ${v.text}.`);
       else setStatus('registry-status', 'bad', `Registry holds ${span}, but these records do not match: ${s.reason}.`);
     } catch (e) {
       setStatus('registry-status', 'bad', `registry read failed: ${e.message}`);
@@ -386,7 +401,15 @@ async function main() {
       const s = await verifySparse(state.lines, claims, { agentId: checkpoints.agentId });
       const when = a.writtenAt ? `written on chain ${a.writtenAt} (block ${a.writeBlock})` : `agent-claimed time ${a.t}`;
       const hist = a.anchors.length ? ` ${a.anchors.length} anchored heads in its history (seq ${a.anchors.map((x) => x.seq).join(', ')}), all checked.` : '';
-      if (s.ok) setStatus('near-status', 'ok', `NEAR anchor matches: seq ${a.seq} head ${short(a.head, 8)}, ${when}.${hist} Records 1..${a.seq} match what was anchored. ${s.reason}.`);
+      let aheadTime = null;
+      if (s.ahead) {   // when was the oldest ahead head written (by the chain's clock)?
+        const first = s.ahead.seqs[0], blk = a.anchors.find((x) => x.seq === first)?.block ?? (first === a.seq ? a.writeBlock : null);
+        if (first === a.seq && a.writtenAt) aheadTime = a.writtenAt;
+        else if (blk) { try { const b = await nearRpc(NEAR[network], 'block', { block_id: Number(blk) }); aheadTime = new Date(Number(BigInt(b.header.timestamp) / 1000000n)).toISOString(); } catch { /* age unknown: stays amber */ } }
+      }
+      const v = anchorState(s, aheadTime);
+      if (v.state === 'ok') setStatus('near-status', 'ok', `NEAR anchor matches: seq ${a.seq} head ${short(a.head, 8)}, ${when}.${hist} Records 1..${a.seq} match what was anchored. ${s.reason}.`);
+      else if (v.text) setStatus('near-status', v.state, `NEAR anchors: these records match every anchored head through seq ${s.okThrough}; ${v.text}.`);
       else setStatus('near-status', 'bad', `NEAR anchors (latest seq ${a.seq}) do not match these records: ${s.reason}.`);
     } catch (e) {
       setStatus('near-status', 'bad', `NEAR read failed: ${e.message}`);
