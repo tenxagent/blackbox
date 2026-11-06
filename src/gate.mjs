@@ -149,7 +149,7 @@ export const PRICED_TOKENS = { 'robinhood:0x5fc5360d0400a0fd4f2af552add042d716f1
 export const TX_BOUND_SINCE = '2026-11-06T13:00:00Z';   // from here the agent's wrappers show the gate every tx (flows.mjs checks it)
 // 11-06 anchor-before-send: from here the operator's wrapper anchors each gated decision on SocialDB + the registry (src/anchor-now.mjs)
 // BEFORE it signs; flows.mjs then checks that a registry anchor covering the decision is older than the send's block (not_anchored_before_send)
-export const ANCHOR_BEFORE_SEND_SINCE = '2026-11-06T18:00:00Z';
+export const ANCHOR_BEFORE_SEND_SINCE = '2026-11-06T15:00:00Z';
 export const AGENT_NEAR_ACCOUNT = '00537bf24e164c18f3512de1040d34c88a11f37976a3ef6d4de673dc9cef6590';   // the agent's anchoring account (implicit)
 const SELECTOR = { '0xa9059cbb': 'transfer', '0x095ea7b3': 'approve' };
 const MAX_UINT = (1n << 256n) - 1n;
