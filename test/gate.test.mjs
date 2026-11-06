@@ -1,6 +1,6 @@
 // src/gate.mjs evaluate(): the pre-sign gate's three rules on hand-built inputs (no network).
 import { assert } from './lib.mjs';
-import { evaluate, spentLast24h, priorApproved, readPolicy, gateCoverage, judgeCounterparty } from '../src/gate.mjs';
+import { evaluate, spentLast24h, priorApproved, readPolicy, gateCoverage, judgeCounterparty, decodeTxs, txDigest } from '../src/gate.mjs';
 import { readFileSync } from 'node:fs';
 
 // rule 3 fixtures: made-up addresses (0x1…, 0x2…), a code hash, and one blocklisted 0xbad… address
@@ -14,6 +14,12 @@ const OK = [{ address: RELAY, chain: 'robinhood', role: 'spender' }];
 const F = { [`robinhood:${RELAY}`]: { codeHash: HASH, nonce: 1 }, [`robinhood:${ROUTER}`]: { codeHash: HASH, nonce: 1 } };   // what readFacts() returns for them
 
 const NOW = Date.parse('2026-11-05T12:00:00Z'), H = 3.6e6;
+// tx fixtures: USDG on Robinhood Chain (priced), another token (not priced), transfer/approve calldata built by hand
+const USDG = '0x5fc5360d0400a0fd4f2af552add042d716f1d168', OTHER_TOKEN = '0x' + '7'.repeat(40), MAX = (1n << 256n) - 1n;
+const word = (x) => BigInt(x).toString(16).padStart(64, '0');
+const tUSDG = (to, n) => ({ chain: 'robinhood', to: USDG, data: '0xa9059cbb' + word(to) + word(n), value: '0x0' });
+const aUSDG = (sp, n) => ({ chain: 'robinhood', to: USDG, data: '0x095ea7b3' + word(sp) + word(n), value: '0x0' });
+const DECL = [{ address: HUMAN, chain: 'robinhood', role: 'recipient' }];   // a human-approved payee
 const allow = (t, usd) => ({ t, engine: 'gate', type: 'gate', action: 'gate_allow', pendingUsd: usd });
 const fresh = { timeMs: NOW - 3 * H };
 
@@ -129,5 +135,44 @@ export const tests = [
       const r = evaluate({ rows: [], anchor: fresh, pendingUsd: 1, nowMs: NOW, policy: P, to: OK, facts: F, published: { ok: false, why: 'the policy file on disk differs from the published one' } });
       assert.equal(r.action, 'gate_refuse'); assert.ok(/policy not usable/.test(r.reasons[0]));
       assert.equal(evaluate({ rows: [], anchor: fresh, pendingUsd: 1, nowMs: NOW, policy: P, to: OK, facts: F, published: { ok: true } }).allow, true);
+    } },
+  // ---- the transactions themselves (2026-11-06): the gate decodes the unsigned txs instead of believing the description ----
+  { name: 'txs: decodeTxs reads transfer / approve / native value / plain calls, prices only USDG, and flags unlimited approvals',
+    fn() {
+      const d = decodeTxs([tUSDG(SELF, 1_500_000), aUSDG(RELAY, 2_000_000), { chain: 'robinhood', to: ROUTER, data: '0x12345678', value: '0x0' },
+        { chain: 'robinhood', to: NEW, data: '0x', value: '0x10' }, { chain: 'robinhood', to: OTHER_TOKEN, data: tUSDG(NEW, 7).data, value: 0 }, aUSDG(BAD, MAX)]);
+      assert.deepEqual(d.counterparties.map((c) => [c.address, c.role]), [[SELF, 'transfer recipient'], [RELAY, 'approve spender'], [ROUTER, 'call target'],
+        [NEW, 'native value'], [NEW, 'transfer recipient'], [BAD, 'approve spender']]);
+      assert.equal(d.usd, 3.5);   // 1.5 USDG sent + 2 USDG approved; the other token and the native coin are not priced
+      assert.equal(d.unpriced.length, 2); assert.deepEqual(d.unlimited.map((u) => u.spender), [BAD]); assert.equal(d.errors.length, 0);
+      assert.equal(decodeTxs([{ chain: 'robinhood', to: USDG, data: tUSDG(SELF, 1).data.slice(0, 74), value: 0 }]).errors.length, 1);   // cut calldata
+      assert.equal(decodeTxs([{ to: USDG, data: '0x' }]).errors.length, 1);   // no chain
+    } },
+  { name: 'txs: the digest is the same for the same tx however it is written (case, hex or decimal value), and differs when anything changes',
+    fn() {
+      const t = tUSDG(SELF, 1_000_000), dgt = txDigest(t);
+      assert.equal(txDigest({ ...t, to: t.to.toUpperCase().replace('0X', '0x'), data: t.data.toUpperCase().replace('0X', '0x'), value: '0' }), dgt);
+      assert.equal(txDigest({ ...t, value: 0n }), dgt);
+      assert.notEqual(txDigest(tUSDG(SELF, 1_000_001)), dgt); assert.notEqual(txDigest({ ...t, chain: 'elysium' }), dgt);
+    } },
+  { name: 'txs: honest transfer allowed and its digest returned; an undeclared payee, an understated USDG amount, an unlimited approval or no tx at all are refused',
+    fn() {
+      const go = (txs, usd = 1, to = DECL) => evaluate({ rows: [], anchor: fresh, pendingUsd: usd, nowMs: NOW, policy: P, to, facts: F, txs });
+      const ok = go([tUSDG(HUMAN, 1_000_000)]);
+      assert.equal(ok.action, 'gate_allow', ok.reasons.join('; ')); assert.equal(ok.shownTxs[0].digest, txDigest(tUSDG(HUMAN, 1_000_000))); assert.equal(ok.shownUsd, 1);
+      const pays = go([tUSDG(NEW, 1_000_000)]);   // escape 16 direct: the description names the agent, the bytes pay someone else
+      assert.equal(pays.action, 'gate_refuse'); assert.match(pays.reasons.join(), /did not declare it/);
+      const under = go([tUSDG(HUMAN, 22_155_330)], 0.01);   // escape 27 for USDG
+      assert.equal(under.action, 'gate_refuse'); assert.match(under.reasons.join(), /\$22\.15533 of USDG; the caller declared \$0\.01/);
+      assert.equal(go([tUSDG(HUMAN, 1_025_000)]).allow, true);   // inside 2 % + 1 cent of $1
+      const unl = go([aUSDG(RELAY, MAX)], 1, [{ address: RELAY, chain: 'robinhood', role: 'spender' }]);
+      assert.equal(unl.action, 'gate_refuse'); assert.match(unl.reasons.join(), /unlimited USDG approval/);
+      assert.equal(go([]).action, 'gate_refuse');
+      const cap = go([tUSDG(HUMAN, 31_000_000)], 31); assert.match(cap.reasons.join(), /exceed the \$30 cap/);
+    } },
+  { name: 'txs: without txs the decision is exactly what it was before (the judge steps run that path)',
+    fn() {
+      const a = evaluate({ rows: [], anchor: fresh, pendingUsd: 3, nowMs: NOW, policy: P, to: OK, facts: F });
+      assert.equal(a.shownTxs, undefined); assert.equal(a.allow, true); assert.deepEqual(a.notes, []);
     } },
 ];

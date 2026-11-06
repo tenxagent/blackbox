@@ -20,7 +20,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { gateCoverage, readPolicy, readRows, CHAIN_RPC, GATE_LIVE_SINCE, GATED_SENDS } from './gate.mjs';
+import { gateCoverage, readPolicy, readRows, txDigest, CHAIN_RPC, GATE_LIVE_SINCE, GATED_SENDS, TX_BOUND_SINCE } from './gate.mjs';
 import { chainOf, rpc } from './rh-proof.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -80,7 +80,7 @@ export function historyPairs(records, { since = GATE_LIVE_SINCE } = {}) {
 
 /** Pure: the gated sends + what the chain and 1Click said → per-send result and findings. read = { 'chain:tx': {tx, receipt} | {error} },
  *  oneClick = { depositAddress (lower case): status | {error} }. */
-export function judgeFlows({ records, policy, read, oneClick = {}, wallet, since = GATE_LIVE_SINCE, pairs = null }) {
+export function judgeFlows({ records, policy, read, oneClick = {}, wallet, since = GATE_LIVE_SINCE, pairs = null, boundSince = TX_BOUND_SINCE }) {
   const cov = gateCoverage(records, { since });
   const bySeq = new Map(records.map((r) => [r.seq, r]));
   const sends = [], findings = [];
@@ -105,7 +105,16 @@ export function judgeFlows({ records, policy, read, oneClick = {}, wallet, since
         }
         return { ...f, usd, label: d.label, ok: d.ok && (oc?.ok ?? true), ...(oc ? { oneClick: oc } : {}) };
       });
-      s.txs.push({ tx: h, result: Number(r.receipt.status) === 1 ? 'ok' : 'reverted', flows });
+      // 2026-11-06: from TX_BOUND_SINCE the gate decision carries a digest of every tx it was shown; the tx on chain must be one of them
+      let shown = null;
+      if (p.gateSeq != null && Date.parse(g.t) >= Date.parse(boundSince)) {
+        const digests = new Set((g.shownTxs ?? []).map((x) => x.digest)), dgt = txDigest({ chain, to: r.tx.to, data: r.tx.input, value: r.tx.value });
+        shown = digests.has(dgt);
+        if (!shown) findings.push({ seq: rec.seq, tx: h, kind: 'tx_not_shown_to_gate', why: digests.size
+          ? `the tx on chain (to ${norm(r.tx.to)}, ${String(r.tx.input ?? '0x').slice(0, 10)}) is not one of the ${digests.size} the gate decision #${p.gateSeq} was shown`
+          : `the gate decision #${p.gateSeq} lists no transactions: the caller did not show the gate what it signed` });
+      }
+      s.txs.push({ tx: h, result: Number(r.receipt.status) === 1 ? 'ok' : 'reverted', flows, ...(shown === null ? {} : { shownToGate: shown }) });
     }
     s.usdOut = Math.round(s.usdOut * 1e6) / 1e6;
     if (s.gateUsd !== null && s.usdOut > s.gateUsd * 1.02 + 0.01) findings.push({ seq: rec.seq, kind: 'amount_over_gate', why: `$${s.usdOut} USDG left the wallet; the gate was told $${s.gateUsd}` });

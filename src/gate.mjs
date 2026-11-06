@@ -34,6 +34,7 @@
 // amount are what the caller says; the gate records them but cannot check them. A code hash catches a redeployed contract,
 // not an upgradeable proxy whose implementation changes. It adds a NEAR RPC read to every gated send by design.
 
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -118,9 +119,55 @@ export function judgeCounterparty(c, policy, prior, facts = {}) {
   return { ...out, verdict: 'warn', why: `unknown counterparty: not allow-listed, not from a trusted API, never approved${fresh} ⇒ ask a human` };
 }
 
+// ---- The transactions themselves (2026-11-06, after screen 4: "every allow path trusts the caller") ----
+// A caller can also show the gate the exact unsigned transactions it is about to sign: txs = [{chain, to, data, value}]. The gate
+// then decodes them itself instead of believing the caller's description: an ERC-20 transfer(to, amount) or approve(spender,
+// amount) names its payee or spender in the calldata, any other call (or native value) reaches tx.to. Every address it finds
+// must be one the caller declared in `to` (else refuse), an unlimited approval is refused, and the USDG the transactions move
+// or approve may not exceed the USD the caller declared (2 % + 1 cent, as in flows.mjs). Only USDG is priced; native coin and
+// other tokens are reported as unpriced, and the caller's USD figure stands for them. Each tx gets a digest of chain|to|data|value
+// that the caller records with the decision, so src/flows.mjs can show afterwards that the transaction on chain is the one the
+// gate was shown (kind tx_not_shown_to_gate). What a router or bridge does inside its own calldata (e.g. a Relay swap's final
+// recipient) is not decoded: those entries still need the caller's recipient (forwardProblem).
+export const PRICED_TOKENS = { 'robinhood:0x5fc5360d0400a0fd4f2af552add042d716f1d168': { symbol: 'USDG', decimals: 6, usd: 1 } };   // USDG = $1
+export const TX_BOUND_SINCE = '2026-11-06T13:00:00Z';   // from here the agent's wrappers show the gate every tx (flows.mjs checks it)
+const SELECTOR = { '0xa9059cbb': 'transfer', '0x095ea7b3': 'approve' };
+const MAX_UINT = (1n << 256n) - 1n;
+const bigOf = (v) => (v === undefined || v === null || v === '' ? 0n : BigInt(v));
+
+/** sha256 of chain|to|data|value, normalized (lower-case hex, value as a decimal integer); nonce and gas are not part of it. */
+export function txDigest({ chain, to, data, value }) {
+  return createHash('sha256').update(`${norm(chain)}|${norm(to)}|${norm(data || '0x')}|${bigOf(value).toString()}`).digest('hex');
+}
+
+/** Pure: decode the unsigned txs → {counterparties, usd, unlimited, unpriced, errors, shown}. */
+export function decodeTxs(txs) {
+  const counterparties = [], unlimited = [], unpriced = [], errors = [], shown = [];
+  let usd = 0;
+  for (const [i, t] of (txs ?? []).entries()) {
+    const chain = t?.chain ? norm(t.chain) : null, to = norm(t?.to), data = norm(t?.data || '0x');
+    let value;
+    try { value = bigOf(t?.value); } catch { errors.push(`tx ${i}: value ${t?.value} is not a number`); continue; }
+    if (!chain || !/^0x[0-9a-f]{40}$/.test(to) || !/^0x([0-9a-f]{2})*$/.test(data)) { errors.push(`tx ${i}: needs a chain, a 0x to-address and hex data`); continue; }
+    const kind = SELECTOR[data.slice(0, 10)], tok = PRICED_TOKENS[`${chain}:${to}`];
+    shown.push({ chain, to, value: value.toString(), selector: data.slice(0, 10), digest: txDigest({ chain, to, data, value }) });
+    if (value > 0n) { counterparties.push({ address: to, chain, role: 'native value', tx: i }); unpriced.push(`tx ${i}: ${value} wei of the native coin`); }
+    if (kind) {
+      if (data.length !== 2 + 8 + 128) { errors.push(`tx ${i}: ${kind} calldata has the wrong length`); continue; }
+      const who = '0x' + data.slice(34, 74), amount = BigInt('0x' + data.slice(74, 138));
+      counterparties.push({ address: who, chain, role: kind === 'transfer' ? 'transfer recipient' : 'approve spender', tx: i });
+      if (kind === 'approve' && amount === MAX_UINT) unlimited.push({ spender: who, token: to, symbol: tok?.symbol ?? to });
+      else if (tok) usd += Number(amount) / 10 ** tok.decimals * tok.usd;
+      else if (amount > 0n) unpriced.push(`tx ${i}: ${kind} of ${amount} units of token ${to}`);
+    } else if (value === 0n) counterparties.push({ address: to, chain, role: 'call target', tx: i });
+  }
+  return { counterparties, usd: Math.round(usd * 1e6) / 1e6, unlimited, unpriced, errors, shown };
+}
+
 /** The decision. anchor = {timeMs} | {error}. to = counterparties (see judgeCounterparty). published = the result of
- *  checkPublished() (false/undefined = not checked; {ok:false} refuses). Pure (test/gate.test.mjs). */
-export function evaluate({ rows, anchor, policy = {}, pendingUsd, nowMs, failOpen = false, to, facts = {}, published }) {
+ *  checkPublished() (false/undefined = not checked; {ok:false} refuses). txs = the unsigned transactions (optional; see
+ *  decodeTxs): when given, the gate checks them against `to` and pendingUsd. Pure (test/gate.test.mjs). */
+export function evaluate({ rows, anchor, policy = {}, pendingUsd, nowMs, failOpen = false, to, facts = {}, published, txs }) {
   const p = { ...DEFAULT_POLICY, ...policy }, reasons = [], notes = [];
   if (published && !published.ok) reasons.push(`policy not usable: ${published.why}`);
   if (!(typeof pendingUsd === 'number' && Number.isFinite(pendingUsd) && pendingUsd >= 0)) reasons.push('pending USD must be a number ≥ 0');
@@ -133,10 +180,22 @@ export function evaluate({ rows, anchor, policy = {}, pendingUsd, nowMs, failOpe
     if (anchorAgeH > p.maxAnchorAgeH) reasons.push(`newest anchor is ${anchorAgeH.toFixed(1)} h old (> ${p.maxAnchorAgeH} h): the log is not being anchored`);
   }
   const spent24h = spentLast24h(rows, nowMs);
-  if (Number.isFinite(pendingUsd) && spent24h + pendingUsd > p.maxDailyUsd) {
-    reasons.push(`$${(spent24h + pendingUsd).toFixed(2)} in 24 h would exceed the $${p.maxDailyUsd} cap ($${spent24h.toFixed(2)} already allowed)`);
-  }
   const list = (Array.isArray(to) ? to : to ? [to] : []).map((c) => (typeof c === 'string' ? { address: c } : c));
+  let dec = null;
+  if (txs !== undefined) {
+    dec = decodeTxs(txs);
+    if (!dec.shown.length && !dec.errors.length) reasons.push('no transaction shown (txs is empty): refusing (fail closed)');
+    for (const e of dec.errors) reasons.push(`transaction not decodable: ${e}`);
+    for (const d of dec.counterparties) {
+      if (!list.some((c) => key(c.chain, c.address) === key(d.chain, d.address))) reasons.push(`REFUSE ${d.address} (${d.role}, tx ${d.tx}): the transaction reaches it, but the caller did not declare it`);
+    }
+    for (const u of dec.unlimited) reasons.push(`REFUSE ${u.spender} (approve spender): unlimited ${u.symbol} approval`);
+    if (Number.isFinite(pendingUsd) && dec.usd > pendingUsd * 1.02 + 0.01) reasons.push(`the transactions move or approve $${dec.usd} of USDG; the caller declared $${pendingUsd}`);
+  }
+  const capUsd = Math.max(Number.isFinite(pendingUsd) ? pendingUsd : 0, dec?.usd ?? 0);
+  if (Number.isFinite(pendingUsd) && spent24h + capUsd > p.maxDailyUsd) {
+    reasons.push(`$${(spent24h + capUsd).toFixed(2)} in 24 h would exceed the $${p.maxDailyUsd} cap ($${spent24h.toFixed(2)} already allowed)`);
+  }
   let counterparties = [];
   if (!list.length) reasons.push('no counterparty given: rule 3 cannot run (fail closed)');
   else {
@@ -148,8 +207,10 @@ export function evaluate({ rows, anchor, policy = {}, pendingUsd, nowMs, failOpe
   const onlyWarn = reasons.length > 0 && counterparties.some((c) => c.verdict === 'warn') && reasons.every((r) => r.startsWith('WARN '));
   const allow = reasons.length === 0;
   const { allow: _a, block: _b, trustedApis: _t, humanApproved: _h, comment: _c, self: _s, ...limits } = p;
+  if (dec?.unpriced.length) notes.push(`not priced by the gate (the caller's USD stands): ${dec.unpriced.join('; ')}`);
   return { allow, action: allow ? 'gate_allow' : onlyWarn ? 'gate_warn' : 'gate_refuse', reasons, notes, counterparties,
-    anchorAgeH: anchorAgeH === null ? null : +anchorAgeH.toFixed(2), spent24h: +spent24h.toFixed(2), pendingUsd, policy: limits };
+    anchorAgeH: anchorAgeH === null ? null : +anchorAgeH.toFixed(2), spent24h: +spent24h.toFixed(2), pendingUsd, policy: limits,
+    ...(dec ? { shownTxs: dec.shown, shownUsd: dec.usd } : {}) };
 }
 
 /** Newest registry anchor of `account` → {timeMs, seq} or {error}. */

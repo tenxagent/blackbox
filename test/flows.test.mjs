@@ -2,7 +2,7 @@
 // Offline: the receipts below are the real ones of seq 3395 (relay_swap) and 3399 (near_fund_deposit), cut to the fields used.
 import { assert } from './lib.mjs';
 import { judgeFlows, outflows, judgeOneClick, historyPairs } from '../src/flows.mjs';
-import { readPolicy } from '../src/gate.mjs';
+import { readPolicy, txDigest } from '../src/gate.mjs';
 
 const W = '0x00731cd9e0bc7cad1b54f85187b09b942cd3be04', USDG = '0x5fc5360d0400a0fd4f2af552add042d716f1d168';
 const PROXY = '0x5567954cd026cebfe486062cb75848e0f1c12e58', ROUTER = '0x0729e2a4716d9f7dd17858d5d504426d228697f7';
@@ -101,5 +101,21 @@ export const tests = [
   { name: 'outflows: native value counts, value coming IN does not',
     fn() {
       assert.deepEqual(outflows({ from: W, to: PROXY, value: '0x10' }, { logs: [log(T, USDG, ROUTER, W, 5)] }, W), [{ kind: 'native', to: PROXY, amount: '16' }]);
+    } },
+  { name: 'tx-bound (2026-11-06): after the cutover the tx on chain must be one the gate decision was shown (digest); another tx, or none shown ⇒ tx_not_shown_to_gate',
+    fn() {
+      const input = '0xa9059cbb' + DEP.slice(2).padStart(64, '0') + (1000000).toString(16).padStart(64, '0');
+      const signed = { chain: 'robinhood', to: USDG, data: input, value: '0x0' };
+      const read = { ...REAL, [`robinhood:${H3}`]: { ...REAL[`robinhood:${H3}`], tx: { ...REAL[`robinhood:${H3}`].tx, input } } };
+      const after = (shownTxs) => [gate(3397, '2026-11-07T10:00:00.000Z', 'near fund 1 USDG -> NEAR', 1), { ...RECORDS[3], row: { ...RECORDS[3].row, t: '2026-11-07T10:00:05.000Z' } }]
+        .map((x, i) => (i === 0 ? { ...x, row: { ...x.row, ...(shownTxs ? { shownTxs } : {}) } } : x));
+      const go = (shownTxs) => judgeFlows({ records: after(shownTxs), policy, read, oneClick: ONECLICK, wallet: W });
+      const ok = go([{ ...signed, digest: txDigest(signed) }]);
+      assert.deepEqual(ok.findings, []); assert.equal(ok.results[0].txs[0].shownToGate, true);
+      const other = { ...signed, data: input.slice(0, -2) + '01' };   // the gate saw a different amount
+      assert.deepEqual(kinds(go([{ ...other, digest: txDigest(other) }])), ['tx_not_shown_to_gate']);
+      const none = go(null);
+      assert.deepEqual(kinds(none), ['tx_not_shown_to_gate']); assert.match(none.findings[0].why, /lists no transactions/);
+      assert.equal(run().results[1].txs[0].shownToGate, undefined);   // the 11-05 sends predate the cutover: not checked
     } },
 ];
