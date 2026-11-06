@@ -67,7 +67,9 @@
    "label": "NEAR Intents 1Click: a new deposit address for every quote",
    "source": "https://1click.chaindefuser.com/v0 (POST /quote); the agent's code calls only this pinned URL and records the address with the quote",
    "added": "2026-11-05T23:10Z",
-   "forwards": true
+   "forwards": true,
+   "status": "https://1click.chaindefuser.com/v0/status?depositAddress=",
+   "statusRule": "added 2026-11-06: the gate reads 1Click's own record of the deposit address before the send; it must be PENDING_DEPOSIT, pay an address in self and refund to an address in self"
   }
  ],
  "humanApproved": [],

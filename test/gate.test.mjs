@@ -175,4 +175,21 @@ export const tests = [
       const a = evaluate({ rows: [], anchor: fresh, pendingUsd: 3, nowMs: NOW, policy: P, to: OK, facts: F });
       assert.equal(a.shownTxs, undefined); assert.equal(a.allow, true); assert.deepEqual(a.notes, []);
     } },
+  { name: "1Click's own record decides (2026-11-06): fresh record paying and refunding the agent ⇒ allow; another recipient, other refunds, a used record, no record, unread or unreadable ⇒ warn",
+    fn() {
+      const PS = { ...P, self: [...P.self, { chain: 'near', address: 'agent.near' }], trustedApis: [{ ...P.trustedApis[0], status: 'https://1click.example/v0/status?depositAddress=' }] };
+      const DEP = '0x' + '8'.repeat(40), c = [{ address: DEP, chain: 'robinhood', role: 'deposit address', provenance: { api: '1click.chaindefuser.com', recipient: SELF } }];
+      const rec = (o) => ({ [`robinhood:${DEP}`]: { api: { status: 'PENDING_DEPOSIT', recipient: 'agent.near', refundTo: SELF, appFeeBps: 20, ...o } } });
+      const go = (facts) => evaluate({ rows: [], anchor: fresh, pendingUsd: 1, nowMs: NOW, policy: PS, to: c, facts });
+      const ok = go(rec({}));
+      assert.equal(ok.action, 'gate_allow', ok.reasons.join('; ')); assert.match(ok.counterparties[0].why, /its own record \(PENDING_DEPOSIT\) pays the agent/);
+      for (const [facts, re] of [[rec({ recipient: 'attacker.near' }), /pays attacker\.near/], [rec({ refundTo: NEW }), /refunds to/], [rec({ status: 'SUCCESS' }), /says SUCCESS/],
+        [{ [`robinhood:${DEP}`]: { api: { notFound: true, status: null } } }, /never issued it/], [{}, /was not read/], [{ [`robinhood:${DEP}`]: { apiError: 'timeout' } }, /could not be read \(timeout\)/]]) {
+        const r = go(facts); assert.equal(r.action, 'gate_warn', JSON.stringify(facts)); assert.match(r.reasons[0], re);
+      }
+      // the caller's own label no longer counts: it says the agent, the record says attacker ⇒ warn
+      assert.equal(go(rec({ recipient: 'attacker.near' })).allow, false);
+      // an API entry without a status URL keeps the old rule (the caller's recipient)
+      assert.equal(evaluate({ rows: [], anchor: fresh, pendingUsd: 1, nowMs: NOW, policy: P, to: c, facts: {} }).allow, true);
+    } },
 ];

@@ -40,15 +40,15 @@ export const tests = [
     },
   },
   {
-    name: 'escape attempts: every one of the 31 gets its expected verdict; the 7 not stopped (+ --no-gate) say where they show',
+    name: 'escape attempts: every one of the 31 gets its expected verdict; the 6 not stopped (+ --no-gate) say where they show',
     fn() {
       const rows = runEscapes();
       assert.equal(new Set(ESCAPES.map((e) => e.id)).size, ESCAPES.length);
       for (const r of rows) assert.equal(r.action, r.expect, `#${r.id} ${r.attempt}: ${r.action} ${r.why}`);
       const open = rows.filter((r) => r.action === 'gate_allow');
-      assert.deepEqual(open.map((r) => r.id), [15, 25, 26, 28, 29, 30, 31]);   // 16 and 27 are refused since the gate reads the txs (2026-11-06)
+      assert.deepEqual(open.map((r) => r.id), [15, 25, 28, 29, 30, 31]);   // 16 and 27 refused since the gate reads the txs, 26 since it reads 1Click's record (2026-11-06)
       for (const r of open) assert.ok(r.stopped === false && r.shows.length > 20);
-      assert.equal(rows.filter((r) => r.action !== 'gate_allow').length, 24);
+      assert.equal(rows.filter((r) => r.action !== 'gate_allow').length, 25);
     },
   },
 ];

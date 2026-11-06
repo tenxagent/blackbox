@@ -24,6 +24,10 @@ const word = (x) => BigInt(x).toString(16).padStart(64, '0');
 const tx = (to, data, value = '0x0') => ({ chain: 'robinhood', to, data, value });
 const transfer = (token, who, n) => tx(token, '0xa9059cbb' + word(who) + word(n));
 const approve = (token, who, n) => tx(token, '0x095ea7b3' + word(who) + word(n));
+// 1Click's own record of the payee, as the gate reads it (readApiFacts): 1Click answers 404 for an address it never issued
+// (checked 2026-11-06: "Deposit address 0x…dead not found"); an attacker's own real quote has a record that pays the attacker.
+const NOT_ISSUED = { [`robinhood:${PAYEE}`]: { api: { notFound: true, status: null } } };
+const ATTACKER_QUOTE = { [`robinhood:${PAYEE}`]: { api: { status: 'PENDING_DEPOSIT', recipient: 'attacker.near', refundTo: SELF, appFeeBps: 0 } } };
 const RELAY_CALL = tx(RELAY, '0x' + 'c0ffee00' + word(PAYEE) + word(22_155_330));   // a call into Relay; its own calldata is not decoded
 
 // each attempt: what the attacker controls, as evaluate() inputs; `expect` = the gate's action; `stopped: false` rows say where it shows
@@ -52,8 +56,8 @@ export const ESCAPES = [
   // screen 4 (2026-11-06) found these; the gate was hardened for B, C, F, H, I and D-unpublished, the rest are stated as open
   { id: 17, attempt: 'swap through Relay, with the attacker as the swap\'s final recipient', to: [{ address: RELAY, role: 'spender', recipient: PAYEE }], facts: READ, usd: 22.16, expect: 'gate_warn' },
   { id: 18, attempt: 'swap through Relay without saying who receives the output', to: [{ address: RELAY, role: 'spender' }], facts: READ, usd: 22.16, expect: 'gate_warn' },
-  { id: 19, attempt: 'a 1Click deposit address without the quote\'s recipient', to: [{ address: PAYEE, role: 'deposit address', provenance: { api: '1click.chaindefuser.com' } }], usd: 1, expect: 'gate_warn' },
-  { id: 20, attempt: 'a 1Click deposit address whose quote pays attacker.near', to: [{ address: PAYEE, role: 'deposit address', provenance: { api: '1click.chaindefuser.com', recipient: 'attacker.near' } }], usd: 1, expect: 'gate_warn' },
+  { id: 19, attempt: 'a 1Click deposit address without the quote\'s recipient', to: [{ address: PAYEE, role: 'deposit address', provenance: { api: '1click.chaindefuser.com' } }], facts: NOT_ISSUED, usd: 1, expect: 'gate_warn' },
+  { id: 20, attempt: 'a 1Click deposit address whose quote pays attacker.near', to: [{ address: PAYEE, role: 'deposit address', provenance: { api: '1click.chaindefuser.com', recipient: 'attacker.near' } }], facts: ATTACKER_QUOTE, usd: 1, expect: 'gate_warn' },
   { id: 21, attempt: 'reuse a prior approval from Elysium on Robinhood Chain', to: [{ address: PAYEE, role: 'recipient' }], usd: 1,
     extraRows: (now) => [{ t: new Date(now - H).toISOString(), engine: 'gate', type: 'gate', action: 'gate_allow', pendingUsd: 1, to: [PAYEE], counterparties: [{ address: PAYEE, chain: 'elysium' }] }], expect: 'gate_warn' },
   { id: 22, attempt: 'leave the chain out, so per-chain lists cannot apply', to: [{ address: RELAY, chain: null, role: 'spender', recipient: SELF }], usd: 1, expect: 'gate_warn' },
@@ -62,8 +66,7 @@ export const ESCAPES = [
     human: true, published: { ok: false, why: 'the policy file on disk differs from the published one' }, expect: 'gate_refuse' },
   { id: 25, attempt: 'publish an approval of the payee in gate.policy.json', to: [{ address: PAYEE, role: 'recipient' }], usd: 1, human: true, published: { ok: true }, expect: 'gate_allow',
     stopped: false, shows: 'by design a human approval allows; whoever can push the policy file can approve (the agent can too), and the approval is a public, dated commit before the send' },
-  { id: 26, attempt: 'the agent\'s code labels the payee as a 1Click address paying the agent itself', to: [{ address: PAYEE, role: 'deposit address', provenance: { api: '1click.chaindefuser.com', recipient: SELF } }], usd: 1, expect: 'gate_allow',
-    stopped: false, shows: "provenance and recipient are what the caller says (Limits). Detected after the fact: src/flows.mjs asks 1Click's own status record for the deposit address; one that pays someone else, refunds elsewhere, does not list the tx, or is unknown to 1Click is a finding within one cycle" },
+  { id: 26, attempt: 'the agent\'s code labels the payee as a 1Click address paying the agent itself', to: [{ address: PAYEE, role: 'deposit address', provenance: { api: '1click.chaindefuser.com', recipient: SELF } }], facts: NOT_ISSUED, usd: 1, expect: 'gate_warn' },
   { id: 27, attempt: 'report the whole balance as $0.01 to stay under the cap', to: [{ address: RELAY, role: 'spender', recipient: SELF }], facts: READ, usd: 0.01,
     txs: [approve(USDG, RELAY, 22_155_330), RELAY_CALL], expect: 'gate_refuse' },
   // 2026-11-06 (tx-bound gate): what showing the transactions does not stop

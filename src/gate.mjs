@@ -108,6 +108,20 @@ export function judgeCounterparty(c, policy, prior, facts = {}) {
     return { ...out, verdict: 'allow', why: `allow-listed: ${listed.label}` };
   }
   const api = c.provenance?.api && (policy.trustedApis ?? []).find((e) => norm(e.api) === norm(c.provenance.api));
+  if (api?.status) {   // 2026-11-06: the API's own record of this address decides, not the caller's label (readApiFacts)
+    if (facts.apiError) return { ...out, verdict: 'warn', why: `${api.label}: its own record of this address could not be read (${facts.apiError})`, provenance: c.provenance };
+    const rec = facts.api;
+    if (!rec) return { ...out, verdict: 'warn', why: `${api.label}: its own record of this address was not read`, provenance: c.provenance };
+    if (rec.notFound) return { ...out, verdict: 'warn', why: `${api.label}: it has no record of this address (it never issued it)`, provenance: c.provenance };
+    const self = (policy.self ?? []).map((x) => norm(x.address)), why = [];
+    if (rec.status !== 'PENDING_DEPOSIT') why.push(`its record says ${rec.status ?? 'nothing'}, not a fresh quote waiting for a deposit`);
+    if (!self.includes(norm(rec.recipient))) why.push(`its record pays ${rec.recipient ?? '(nobody named)'}, not the agent`);
+    if (!self.includes(norm(rec.refundTo))) why.push(`its record refunds to ${rec.refundTo ?? '(nobody named)'}, not the agent`);
+    if (why.length) return { ...out, verdict: 'warn', why: `${api.label}: ${why.join('; ')}`, provenance: c.provenance, apiRecord: rec };
+    const fwd = forwardProblem(api, { ...c, recipient: rec.recipient }, policy);
+    if (fwd) return { ...out, verdict: 'warn', why: fwd, provenance: c.provenance, apiRecord: rec };
+    return { ...out, verdict: 'allow', why: `from a trusted API: ${api.label}; its own record (${rec.status}) pays the agent and refunds to it`, provenance: c.provenance, apiRecord: rec };
+  }
   if (api) {
     const fwd = forwardProblem(api, c, policy);
     if (fwd) return { ...out, verdict: 'warn', why: fwd, provenance: c.provenance };
@@ -275,6 +289,33 @@ export async function readFacts(to, rpcs = CHAIN_RPC) {
   return facts;
 }
 
+// 2026-11-06: for a counterparty from a trusted API whose policy entry names a status URL (1Click), read the API's own record of
+// the address before the send: {api: {status, recipient, refundTo, appFeeBps}}, {api: {notFound: true}} on HTTP 404, or {apiError}. Merged into facts by readAllFacts.
+export async function readApiFacts(to, policy = readPolicy()) {
+  const facts = {};
+  await Promise.all(to.map(async (c) => {
+    const e = c?.provenance?.api && (policy.trustedApis ?? []).find((x) => norm(x.api) === norm(c.provenance.api));
+    if (!e?.status || !c.address) return;
+    try {
+      const res = await fetch(e.status + encodeURIComponent(c.address), { signal: AbortSignal.timeout(15_000) });
+      if (res.status === 404) { facts[key(c.chain, c.address)] = { api: { notFound: true, status: null } }; return; }   // the API never issued it
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const j = await res.json(), q = j.quoteResponse?.quoteRequest ?? {};
+      facts[key(c.chain, c.address)] = { api: { status: j.status ?? null, recipient: q.recipient ?? null, refundTo: q.refundTo ?? null,
+        appFeeBps: (q.appFees ?? []).reduce((a, f) => a + (Number(f.fee) || 0), 0) } };
+    } catch (err) { facts[key(c.chain, c.address)] = { apiError: String(err.message ?? err).slice(0, 80) }; }
+  }));
+  return facts;
+}
+
+/** readFacts (code hash, nonce) + readApiFacts (trusted APIs' own records), merged per counterparty. */
+export async function readAllFacts(to, policy = readPolicy(), rpcs = CHAIN_RPC) {
+  const [a, b] = await Promise.all([readFacts(to, rpcs), readApiFacts(to, policy)]);
+  const out = { ...a };
+  for (const [k, v] of Object.entries(b)) out[k] = { ...(out[k] ?? {}), ...v };
+  return out;
+}
+
 // The policy that counts is the PUBLISHED one: an approval added on disk but not pushed to the public repo does not count yet.
 export const PUBLISHED_POLICY_URL = 'https://raw.githubusercontent.com/tenxagent/blackbox/main/gate.policy.json';
 /** Compare the policy file on disk with the published one. → {ok: true} | {ok: false, why}. Fails closed when unreadable. */
@@ -314,7 +355,7 @@ async function main() {
   if (opt('max-daily-usd') !== undefined) policy.maxDailyUsd = Number(opt('max-daily-usd'));
   const anchor = opt('anchor-time') ? { timeMs: Date.parse(opt('anchor-time')) } : opt('account') ? await readRegistryAnchor(opt('account'), opt('network', 'mainnet')) : { error: 'no --account and no --anchor-time' };
   const to = (opt('to') ?? '').split(',').filter(Boolean).map((address) => ({ address, chain: opt('chain'), ...(opt('recipient') ? { recipient: opt('recipient') } : {}) }));
-  const facts = has('no-code-check') ? {} : await readFacts(to);
+  const facts = has('no-code-check') ? {} : await readAllFacts(to, policy);
   const published = has('require-published') ? await checkPublished(opt('policy') ? path.resolve(opt('policy')) : POLICY_FILE) : undefined;
   const txs = opt('txs') ? JSON.parse(readFileSync(path.resolve(opt('txs')), 'utf8')) : undefined;   // [{chain, to, data, value}] (2026-11-06)
   const r = evaluate({ rows, anchor, policy, pendingUsd: Number(opt('pending-usd')), nowMs, failOpen: has('fail-open'), to, facts, published, txs });
