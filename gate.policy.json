@@ -1,7 +1,19 @@
 {
- "comment": "Policy for src/gate.mjs (the pre-sign gate). Rules 1-2 use maxAnchorAgeH and maxDailyUsd. Rule 3 (counterparty) uses the four lists. Every entry says where it came from. Addresses are public contracts or APIs, never a person's wallet. A change to this file is a policy change: it is public in git history before any send relies on it.",
+ "comment": "Policy for src/gate.mjs (the pre-sign gate). Rules 1-2 use maxAnchorAgeH and maxDailyUsd. Rule 3 (counterparty) uses self, allow, trustedApis, humanApproved and block. Every entry says where it came from. Addresses are public contracts or APIs, or the agent's own public addresses (self), never a person's wallet. The agent's gate uses only the version published on GitHub main, so a change counts once it is public.",
  "maxAnchorAgeH": 20,
  "maxDailyUsd": 30,
+ "self": [
+  {
+   "chain": "robinhood",
+   "address": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "label": "the agent's wallet (same key on every EVM chain it uses: Robinhood Chain, HyperEVM, Elysium)"
+  },
+  {
+   "chain": "near",
+   "address": "00537bf24e164c18f3512de1040d34c88a11f37976a3ef6d4de673dc9cef6590",
+   "label": "the agent's NEAR account"
+  }
+ ],
  "allow": [
   {
    "chain": "robinhood",
@@ -9,7 +21,8 @@
    "label": "Relay approvalProxy (v3.2) on Robinhood Chain",
    "source": "https://api.relay.link/chains, chain 4663, contracts.approvalProxy; used by relay_swap (seq 3395) and giga_sell (seq 3324)",
    "codeHash": "0xb5d50ef33744b33991a3c57d8c7db101b068b65403588edd50435be53020b44c",
-   "added": "2026-11-06"
+   "added": "2026-11-05T23:10Z",
+   "forwards": true
   },
   {
    "chain": "robinhood",
@@ -17,7 +30,8 @@
    "label": "Relay depository (protocol v2) on Robinhood Chain",
    "source": "https://api.relay.link/chains, chain 4663, protocol.v2.depository; used by sleeve_fund_relay_deposit (seq 2696)",
    "codeHash": "0xc8b9128d5bc2534ff2b2d7a45fd35a657ec345f5b9ad1d7a05b47b73d1ef4b07",
-   "added": "2026-11-06"
+   "added": "2026-11-05T23:10Z",
+   "forwards": true
   },
   {
    "chain": "elysium",
@@ -25,7 +39,8 @@
    "label": "ElysPump v2 router on Elysium",
    "source": "elysp.com's own web page (router used by its buy button); used by sleeve_buy (seq 2701, 2714)",
    "codeHash": "0x6bbdf8bdcb1336bc11b6014cf9632ad922e7466a4902abded04dd24d9de06999",
-   "added": "2026-11-06"
+   "added": "2026-11-05T23:10Z",
+   "forwards": true
   },
   {
    "chain": "elysium",
@@ -33,7 +48,8 @@
    "label": "Eleos v4 router on Elysium",
    "source": "eleos.fun's frontend bundle, confirmed by the function selectors in the router bytecode; used by sleeve_buy (seq 2954)",
    "codeHash": "0xc9e19c2841d5b0ef842e58c820dc4c33df5e1fb28359c8026c5def91ee1bb70c",
-   "added": "2026-11-06"
+   "added": "2026-11-05T23:10Z",
+   "forwards": true
   }
  ],
  "trustedApis": [
@@ -41,7 +57,8 @@
    "api": "1click.chaindefuser.com",
    "label": "NEAR Intents 1Click: a new deposit address for every quote",
    "source": "https://1click.chaindefuser.com/v0 (POST /quote); the agent's code calls only this pinned URL and records the address with the quote",
-   "added": "2026-11-06"
+   "added": "2026-11-05T23:10Z",
+   "forwards": true
   }
  ],
  "humanApproved": [],

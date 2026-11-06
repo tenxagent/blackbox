@@ -10,6 +10,9 @@
 //       anchor(seq, head, records_url) for the head at seq N (default: the final head in checkpoints.json)
 //   node src/registry-cli.mjs register --agent-id CAIP10 [--deposit 0.08] [--send --i-understand-mainnet]
 //   node src/registry-cli.mjs deposit --amount NEAR [--send --i-understand-mainnet]
+//   node src/registry-cli.mjs social-deposit --amount NEAR [--send --i-understand-mainnet]
+//       the same for SocialDB (social.near storage_deposit): the SocialDB mirror of each anchor is paid from that balance, and the
+//       anchoring job's function-call key cannot attach a deposit, so the operator tops it up once with the full-access key.
 //       storage_deposit(): adds NEAR to the caller's prepaid storage (each anchor is paid from it). Needs a key
 //       that can attach a deposit (a function-call key cannot). At most 0.5 NEAR per call.
 //
@@ -26,6 +29,7 @@ import { loadKeyFile } from './anchor.mjs';
 import { anchorArgs, registerArgs, encodeArgs, getAgentArgs, parseAgent, readAllAnchors, checkAccount } from './registry.mjs';
 
 export const REGISTRY = '08035588c459e514c632061fb4862fde62297571f1e44716e01bcc9913986e8a';   // mainnet, deployed + locked 2026-10-31
+const NEAR_SOCIAL = 'social.near';   // SocialDB on mainnet (the mirror anchor's storage is prepaid there)
 export const REGISTRY_CODE_HASH = 'HHWM5HdMW4A513pxMmXGRt168Uh4PeDiBcCps8DG34Vk';              // = contract/res/blackbox_registry.wasm
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -75,7 +79,7 @@ async function read() {
   process.exit(r.ok && locked ? 0 : 1);
 }
 
-async function write(methodName, args, deposit) {
+async function write(methodName, args, deposit, receiverId = REGISTRY) {
   const network = opt('network', 'mainnet'), url = rpc.rpcUrl(network), send = has('send');
   if (send && network === 'mainnet' && !has('i-understand-mainnet')) { console.error('refusing to send on mainnet without --i-understand-mainnet (this spends real NEAR)'); process.exit(2); }
   const kf = process.env.BLACKBOX_NEAR_KEY_FILE;
@@ -83,12 +87,12 @@ async function write(methodName, args, deposit) {
   const { account, keyPair } = loadKeyFile(kf);
   const ctx = await txContext(url, account, keyPair);
   const actions = [{ functionCall: { methodName, args: encodeArgs(args), gas: 30n * TGAS, deposit } }];
-  const signed = signTransaction({ signerId: account, publicKey: keyPair.publicKey, nonce: ctx.nonce, receiverId: REGISTRY, blockHash: ctx.blockHash, actions }, keyPair);
-  console.log(`${methodName}    ${JSON.stringify(args)} · signer ${account} (${typeof ctx.permission === 'string' ? ctx.permission : 'FunctionCall'}) · tx ${signed.hashBase58}`);
+  const signed = signTransaction({ signerId: account, publicKey: keyPair.publicKey, nonce: ctx.nonce, receiverId, blockHash: ctx.blockHash, actions }, keyPair);
+  console.log(`${receiverId === REGISTRY ? '' : receiverId + ' '}${methodName}    ${JSON.stringify(args)} · signer ${account} (${typeof ctx.permission === 'string' ? ctx.permission : 'FunctionCall'}) · tx ${signed.hashBase58}`);
   if (!send) { console.log('DRY RUN: nothing was sent (add --send)'); return; }
   const res = await rpc.sendTx(url, signed.signedBase64, 'FINAL');
   const ok = res?.status?.SuccessValue !== undefined;
-  console.log(JSON.stringify({ type: ok ? 'live' : 'alert', action: `registry_${methodName}`, near_tx: signed.hashBase58, ok, err: ok ? undefined : JSON.stringify(res?.status ?? res).slice(0, 300) }));
+  console.log(JSON.stringify({ type: ok ? 'live' : 'alert', action: receiverId === REGISTRY ? `registry_${methodName}` : 'socialdb_storage_deposit', near_tx: signed.hashBase58, ok, err: ok ? undefined : JSON.stringify(res?.status ?? res).slice(0, 300) }));
   if (!ok) process.exit(1);
 }
 
@@ -108,7 +112,12 @@ async function main() {
     if (!(y > 0n) || y > near('0.5')) { console.error('deposit --amount NEAR: more than 0 and at most 0.5'); process.exit(2); }
     return write('storage_deposit', {}, y);
   }
-  console.error('usage: read --account ID | anchor --records-url URL [--seq N] | register --agent-id CAIP10 | deposit --amount NEAR  (writes: --send --i-understand-mainnet)');
+  if (cmd === 'social-deposit') {
+    const a = opt('amount'), y = a && /^\d+(\.\d{1,24})?$/.test(a) ? near(a) : 0n;
+    if (!(y > 0n) || y > near('0.5')) { console.error('social-deposit --amount NEAR: more than 0 and at most 0.5'); process.exit(2); }
+    return write('storage_deposit', {}, y, NEAR_SOCIAL);
+  }
+  console.error('usage: read --account ID | anchor --records-url URL [--seq N] | register --agent-id CAIP10 | deposit --amount NEAR | social-deposit --amount NEAR  (writes: --send --i-understand-mainnet)');
   process.exit(2);
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();

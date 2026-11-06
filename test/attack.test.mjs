@@ -40,15 +40,15 @@ export const tests = [
     },
   },
   {
-    name: 'escape attempts: every one of the 16 gets its expected verdict; the 3 not stopped say where they show',
+    name: 'escape attempts: every one of the 27 gets its expected verdict; the 5 not stopped (+ --no-gate) say where they show',
     fn() {
       const rows = runEscapes();
       assert.equal(new Set(ESCAPES.map((e) => e.id)).size, ESCAPES.length);
       for (const r of rows) assert.equal(r.action, r.expect, `#${r.id} ${r.attempt}: ${r.action} ${r.why}`);
       const open = rows.filter((r) => r.action === 'gate_allow');
-      assert.deepEqual(open.map((r) => r.id), [15, 16]);
+      assert.deepEqual(open.map((r) => r.id), [15, 16, 25, 26, 27]);
       for (const r of open) assert.ok(r.stopped === false && r.shows.length > 20);
-      assert.equal(rows.filter((r) => r.action !== 'gate_allow').length, 14);
+      assert.equal(rows.filter((r) => r.action !== 'gate_allow').length, 22);
     },
   },
 ];

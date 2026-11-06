@@ -32,8 +32,25 @@ export function coverageSummary(cov, liveNonce = null) {
 }
 export const NEAR = {
   testnet: { rpc: 'https://test.rpc.fastnear.com', socialDb: 'v1.social08.testnet', explorer: 'https://testnet.nearblocks.io/address/' },
-  mainnet: { rpc: 'https://free.rpc.fastnear.com', socialDb: 'social.near', explorer: 'https://nearblocks.io/address/' },
+  // 2026-11-06 (screen 4 Y-9): three public CORS-enabled RPCs, tried in order on a network error or a rate limit (429)
+  mainnet: { rpc: 'https://free.rpc.fastnear.com', rpcs: ['https://free.rpc.fastnear.com', 'https://rpc.mainnet.near.org', 'https://rpc.mainnet.fastnear.com'], socialDb: 'social.near', explorer: 'https://nearblocks.io/address/' },
 };
+
+/** One NEAR JSON-RPC call; transport errors and rate limits move on to the next endpoint, a contract error is thrown at once. */
+export async function nearRpc(net, method, params, fetchImpl = fetch) {
+  let last;
+  for (const url of net.rpcs ?? [net.rpc]) {
+    try {
+      const res = await fetchImpl(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 'bb', method, params }) });
+      if (res.status === 429 || res.status >= 500) { last = new Error(`${new URL(url).host}: HTTP ${res.status}`); continue; }
+      const j = await res.json();
+      if (j.error && (j.error.code === -429 || /rate limit/i.test(JSON.stringify(j.error)))) { last = new Error(`${new URL(url).host}: rate limited`); continue; }
+      if (j.error || j.result?.error) throw Object.assign(new Error(JSON.stringify(j.error || j.result.error).slice(0, 200)), { final: true });
+      return j.result;
+    } catch (e) { if (e.final) throw e; last = e; }
+  }
+  throw new Error(`NEAR read failed on every endpoint: ${last?.message ?? 'no endpoint'}`);
+}
 
 const short = (s, n = 6) => (typeof s === 'string' && s.length > 2 * n + 2 ? `${s.slice(0, n + 2)}…${s.slice(-n)}` : String(s ?? ''));
 export const usd = (x) => (typeof x === 'number' ? `$${x < 1 ? x.toFixed(4).replace(/\.?0+$/, '') : x.toFixed(2)}` : '');
@@ -187,12 +204,7 @@ export async function readNearAnchor(network, account) {
   // with_block_height: every leaf comes back as { "": value, ":block": height of the block that wrote it } (chain time, not the
   // agent's claimed t). anchors/<seq> holds every anchored head, so all of them are checked, not just the latest.
   const args = btoa(JSON.stringify({ keys: [`${account}/blackbox/**`], options: { with_block_height: true } }));
-  const rpcCall = async (method, params) => {
-    const res = await fetch(net.rpc, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 'bb', method, params }) });
-    const j = await res.json();
-    if (j.error || j.result?.error) throw new Error(JSON.stringify(j.error || j.result.error).slice(0, 200));
-    return j.result;
-  };
+  const rpcCall = (method, params) => nearRpc(net, method, params);
   const r = await rpcCall('query', { request_type: 'call_function', finality: 'final', account_id: net.socialDb, method_name: 'get', args_base64: args });
   const value = JSON.parse(new TextDecoder().decode(new Uint8Array(r.result)));
   const node = value?.[account]?.blackbox;
@@ -210,12 +222,7 @@ export async function readNearAnchor(network, account) {
 // Registry: is it locked (no access keys) and running the reviewed code? Then every head it holds for `account`.
 export async function readRegistry(network, account) {
   const net = NEAR[network];
-  const rpcCall = async (method, params) => {
-    const res = await fetch(net.rpc, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 'bb', method, params }) });
-    const j = await res.json();
-    if (j.error || j.result?.error) throw new Error(JSON.stringify(j.error || j.result.error).slice(0, 200));
-    return j.result;
-  };
+  const rpcCall = (method, params) => nearRpc(net, method, params);
   const acc = await rpcCall('query', { request_type: 'view_account', finality: 'final', account_id: REGISTRY });
   const keys = (await rpcCall('query', { request_type: 'view_access_key_list', finality: 'final', account_id: REGISTRY })).keys;
   const view = async (method, args) => {

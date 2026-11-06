@@ -11,24 +11,28 @@
 //   3. Counterparty (2026-11-06). Every address the value reaches must be given: the decoded recipient, spender or
 //      router, not only tx.to (for a token transfer tx.to is the token contract). Each one gets a verdict:
 //        block  it is on the policy's blocklist (with evidence)                                    ⇒ refuse
-//        allow  it is an allow-listed public contract (source + code hash in gate.policy.json; a changed code hash
-//               turns it into a warn), OR it came from an API the policy trusts (the caller passes provenance, which
-//               is recorded), OR a human approval for it is committed to gate.policy.json, OR the gate approved a
-//               send to it before (prior interaction; rows written before 2026-11-06 carry no address)
-//        warn   anything else, e.g. an address that arrived in a message ⇒ refuse until a human approves it.
-//      No counterparty given ⇒ refuse (fail closed).
+//        allow  it is an allow-listed public contract ON THAT CHAIN (source + code hash in gate.policy.json; the code hash
+//               is read with eth_getProof, and a changed, unreadable or unchecked hash turns it into a warn), OR it came
+//               from an API the policy trusts (the caller passes provenance, which is recorded), OR a human approval for it
+//               is in the published gate.policy.json, OR the gate approved a send to it on that chain before (prior
+//               interaction; only rows written since 2026-11-06 carry per-chain counterparties). An entry that forwards
+//               value (router, bridge, deposit address) also needs the final recipient, which must be one of policy.self.
+//        warn   anything else, e.g. an address that arrived in a message, or no chain given ⇒ refuse until a human approves.
+//      No counterparty given ⇒ refuse (fail closed). The agent's wrapper also refuses when the policy file on disk differs
+//      from the one published on GitHub main (checkPublished), so an approval counts only once it is public.
 //
-//   node src/gate.mjs check --pending-usd 3 --to 0xADDR[,0xADDR] [--chain robinhood] [--policy gate.policy.json]
+//   node src/gate.mjs check --pending-usd 3 --to 0xADDR[,0xADDR] --chain robinhood [--recipient ADDR] [--policy gate.policy.json]
+//        [--no-code-check] [--require-published]
 //        [--rows data/records.jsonl] [--account ID] [--network mainnet] [--max-anchor-age-h 20] [--max-daily-usd 30]
 //        [--fail-open] [--anchor-time ISO] [--now ISO]
 //   ⇒ one JSON line {allow, action, reasons, counterparties, anchorAgeH, spent24h, pendingUsd}; exit 0 = allow, 1 = refuse, 2 = usage.
 //   node src/gate.mjs coverage [--rows data/records.jsonl]
 //   ⇒ {sends, covered, bypassed, missing}: did every gated send since the gate went live have a gate decision? exit 1 if not.
 // --rows takes a JSONL file of records ({row: {...}}) or of raw ledger rows; --anchor-time skips the NEAR read (tests, demos).
-// Limits: this is a policy the agent's own code calls. A compromised key, or an operator who edits the calling code or
-// gate.policy.json, bypasses it. Provenance is what the caller says; the gate records it but cannot check it. A code hash
-// catches a redeployed contract, not an upgradeable proxy whose implementation changes. It adds a NEAR RPC read to every
-// gated send by design.
+// Limits: this is a policy the agent's own code calls. A compromised key, or an operator who edits the calling code, bypasses
+// it; so does anyone who can push gate.policy.json (the agent can too). The counterparties, recipient, provenance and USD
+// amount are what the caller says; the gate records them but cannot check them. A code hash catches a redeployed contract,
+// not an upgradeable proxy whose implementation changes. It adds a NEAR RPC read to every gated send by design.
 
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -54,17 +58,30 @@ export function spentLast24h(rows, nowMs) {
 }
 
 const norm = (a) => String(a ?? '').trim().toLowerCase();
-const sameChain = (entry, c) => !entry.chain || !c.chain || norm(entry.chain) === norm(c.chain);
+const blockMatches = (entry, c) => !entry.chain || !c.chain || norm(entry.chain) === norm(c.chain);   // a block entry without a chain blocks everywhere
+const sameChain = (entry, c) => !!c.chain && norm(entry.chain) === norm(c.chain);                      // allow / human entries are per chain
+const key = (chain, address) => `${norm(chain)}:${norm(address)}`;
 
-/** Addresses the gate approved sends to before nowMs (rows: records or raw ledger rows) → Map(address → count). Pure. */
+/** (chain, address) pairs the gate approved sends to before nowMs → Map('chain:address' → count). Counts only rows that carry
+ *  per-counterparty chains (written since 2026-11-06); a row's bare `to` list has no chain and counts for nothing. Pure. */
 export function priorApproved(rows, nowMs) {
   const seen = new Map();
   for (const x of rows) {
     const r = x?.row ?? x;
-    if (r?.engine !== 'gate' || r.action !== 'gate_allow' || !Array.isArray(r.to) || !(Date.parse(r.t) <= nowMs)) continue;
-    for (const a of r.to) seen.set(norm(a), (seen.get(norm(a)) ?? 0) + 1);
+    if (r?.engine !== 'gate' || r.action !== 'gate_allow' || !Array.isArray(r.counterparties) || !(Date.parse(r.t) <= nowMs)) continue;
+    for (const c of r.counterparties) if (c?.chain && c.address) seen.set(key(c.chain, c.address), (seen.get(key(c.chain, c.address)) ?? 0) + 1);
   }
   return seen;
+}
+
+/** For an entry that forwards value (a router, a bridge, a deposit address): the counterparty must name the final recipient, and
+ *  it must be one of the agent's own addresses (policy.self). → null when fine, else the reason. */
+function forwardProblem(entry, c, policy) {
+  if (!entry.forwards) return null;
+  const rcp = norm(c.recipient?.address ?? c.recipient ?? c.provenance?.recipient);
+  if (!rcp) return `${entry.label} forwards the value, and no final recipient was given`;
+  if (!(policy.self ?? []).some((s) => norm(s.address) === rcp)) return `${entry.label} forwards the value to ${rcp}, which is not one of the agent's own addresses`;
+  return null;
 }
 
 /** Rule 3 for one counterparty c = {address, chain?, role?, provenance?: {api, ...}}. facts = {codeHash?, nonce?} read by the
@@ -73,29 +90,39 @@ export function priorApproved(rows, nowMs) {
 export function judgeCounterparty(c, policy, prior, facts = {}) {
   const addr = norm(c.address), out = { address: addr, chain: c.chain ?? null, role: c.role ?? null };
   if (!addr) return { ...out, verdict: 'block', why: 'no address given' };
-  const blocked = (policy.block ?? []).find((e) => norm(e.address) === addr && sameChain(e, c));
+  const blocked = (policy.block ?? []).find((e) => norm(e.address) === addr && blockMatches(e, c));
   if (blocked) return { ...out, verdict: 'block', why: `blocklisted: ${blocked.evidence}` };
+  if (!c.chain) return { ...out, verdict: 'warn', why: 'no chain given: allow-list entries, approvals and prior sends are per chain' };
   const listed = (policy.allow ?? []).find((e) => norm(e.address) === addr && sameChain(e, c));
   if (listed) {
     if (listed.codeHash && facts.error) return { ...out, verdict: 'warn', why: `${listed.label}: its code could not be read to check the hash (${facts.error})` };
-    if (listed.codeHash && facts.codeHash !== undefined && norm(listed.codeHash) !== norm(facts.codeHash)) {
+    if (listed.codeHash && facts.codeHash === undefined) return { ...out, verdict: 'warn', why: `${listed.label}: code hash not checked (no on-chain read was made)` };
+    if (listed.codeHash && norm(listed.codeHash) !== norm(facts.codeHash)) {
       return { ...out, verdict: 'warn', why: `${listed.label}: code hash changed since it was allow-listed (${listed.codeHash.slice(0, 10)}… → ${facts.codeHash ? `${facts.codeHash.slice(0, 10)}…` : 'no code'})` };
     }
+    const fwd = forwardProblem(listed, c, policy);
+    if (fwd) return { ...out, verdict: 'warn', why: fwd };
     return { ...out, verdict: 'allow', why: `allow-listed: ${listed.label}` };
   }
   const api = c.provenance?.api && (policy.trustedApis ?? []).find((e) => norm(e.api) === norm(c.provenance.api));
-  if (api) return { ...out, verdict: 'allow', why: `from a trusted API: ${api.label}`, provenance: c.provenance };
+  if (api) {
+    const fwd = forwardProblem(api, c, policy);
+    if (fwd) return { ...out, verdict: 'warn', why: fwd, provenance: c.provenance };
+    return { ...out, verdict: 'allow', why: `from a trusted API: ${api.label}`, provenance: c.provenance };
+  }
   const human = (policy.humanApproved ?? []).find((e) => norm(e.address) === addr && sameChain(e, c));
-  if (human) return { ...out, verdict: 'allow', why: `approved by a human: ${human.by}, ${human.at}` };
-  const n = prior.get(addr) ?? 0;
+  if (human) return { ...out, verdict: 'allow', why: `approved by a human: ${human.by}, ${human.at} (counts only from the published policy)` };
+  const n = prior.get(key(c.chain, addr)) ?? 0;
   if (n > 0) return { ...out, verdict: 'allow', why: `prior interaction: ${n} earlier approved send${n > 1 ? 's' : ''}` };
   const fresh = facts.nonce === 0 && facts.codeHash === null ? '; fresh address (0 txs, no code)' : '';
   return { ...out, verdict: 'warn', why: `unknown counterparty: not allow-listed, not from a trusted API, never approved${fresh} ⇒ ask a human` };
 }
 
-/** The decision. anchor = {timeMs} | {error}. to = counterparties (see judgeCounterparty). Pure (test/gate.test.mjs). */
-export function evaluate({ rows, anchor, policy = {}, pendingUsd, nowMs, failOpen = false, to, facts = {} }) {
+/** The decision. anchor = {timeMs} | {error}. to = counterparties (see judgeCounterparty). published = the result of
+ *  checkPublished() (false/undefined = not checked; {ok:false} refuses). Pure (test/gate.test.mjs). */
+export function evaluate({ rows, anchor, policy = {}, pendingUsd, nowMs, failOpen = false, to, facts = {}, published }) {
   const p = { ...DEFAULT_POLICY, ...policy }, reasons = [], notes = [];
+  if (published && !published.ok) reasons.push(`policy not usable: ${published.why}`);
   if (!(typeof pendingUsd === 'number' && Number.isFinite(pendingUsd) && pendingUsd >= 0)) reasons.push('pending USD must be a number ≥ 0');
   let anchorAgeH = null;
   if (!anchor || anchor.error || !Number.isFinite(anchor.timeMs)) {
@@ -114,13 +141,13 @@ export function evaluate({ rows, anchor, policy = {}, pendingUsd, nowMs, failOpe
   if (!list.length) reasons.push('no counterparty given: rule 3 cannot run (fail closed)');
   else {
     const prior = priorApproved(rows, nowMs);
-    counterparties = list.map((c) => judgeCounterparty(c, p, prior, facts[norm(c.address)] ?? {}));
+    counterparties = list.map((c) => judgeCounterparty(c, p, prior, facts[key(c.chain, c.address)] ?? {}));
     for (const c of counterparties) if (c.verdict !== 'allow') reasons.push(`${c.verdict.toUpperCase()} ${c.address}${c.role ? ` (${c.role})` : ''}: ${c.why}`);
   }
   // action: what the caller records. Only-warn refusals are 'gate_warn' (waiting for a human), every other refusal 'gate_refuse'.
   const onlyWarn = reasons.length > 0 && counterparties.some((c) => c.verdict === 'warn') && reasons.every((r) => r.startsWith('WARN '));
   const allow = reasons.length === 0;
-  const { allow: _a, block: _b, trustedApis: _t, humanApproved: _h, comment: _c, ...limits } = p;
+  const { allow: _a, block: _b, trustedApis: _t, humanApproved: _h, comment: _c, self: _s, ...limits } = p;
   return { allow, action: allow ? 'gate_allow' : onlyWarn ? 'gate_warn' : 'gate_refuse', reasons, notes, counterparties,
     anchorAgeH: anchorAgeH === null ? null : +anchorAgeH.toFixed(2), spent24h: +spent24h.toFixed(2), pendingUsd, policy: limits };
 }
@@ -164,6 +191,38 @@ export function gateCoverage(rows, { since = GATE_LIVE_SINCE, windowMin = 15 } =
   return out;
 }
 
+// Code hash + nonce of EVM counterparties, read with eth_getProof (no keccak library needed). A chain with no RPC here is not read.
+export const CHAIN_RPC = { robinhood: 'https://rpc.mainnet.chain.robinhood.com', elysium: 'https://rpc-live.elysp.com' };
+const EMPTY_CODE = new Set(['0x' + '0'.repeat(64), '0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470']);
+/** to → { 'chain:address': {codeHash (null = no code), nonce} | {error} }. */
+export async function readFacts(to, rpcs = CHAIN_RPC) {
+  const facts = {};
+  await Promise.all(to.map(async (c) => {
+    const url = rpcs[c?.chain], a = norm(c?.address);
+    if (!url || !/^0x[0-9a-f]{40}$/.test(a)) return;
+    try {
+      const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, signal: AbortSignal.timeout(15_000),
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getProof', params: [a, [], 'latest'] }) });
+      const j = await res.json();
+      if (!j.result?.codeHash) throw new Error(JSON.stringify(j.error ?? 'no codeHash').slice(0, 80));
+      facts[key(c.chain, a)] = { codeHash: EMPTY_CODE.has(norm(j.result.codeHash)) ? null : norm(j.result.codeHash), nonce: Number(BigInt(j.result.nonce)) };
+    } catch (e) { facts[key(c.chain, a)] = { error: String(e.message ?? e).slice(0, 80) }; }
+  }));
+  return facts;
+}
+
+// The policy that counts is the PUBLISHED one: an approval added on disk but not pushed to the public repo does not count yet.
+export const PUBLISHED_POLICY_URL = 'https://raw.githubusercontent.com/tenxagent/blackbox/main/gate.policy.json';
+/** Compare the policy file on disk with the published one. → {ok: true} | {ok: false, why}. Fails closed when unreadable. */
+export async function checkPublished(file = POLICY_FILE, url = PUBLISHED_POLICY_URL) {
+  try {
+    const res = await fetch(`${url}?t=${Date.now()}`, { signal: AbortSignal.timeout(15_000) });
+    if (!res.ok) return { ok: false, why: `published policy not readable (HTTP ${res.status})` };
+    const pub = await res.text(), disk = readFileSync(file, 'utf8');
+    return pub === disk ? { ok: true } : { ok: false, why: 'the policy file on disk differs from the published one (publish it first; GitHub raw can lag ~5 min)' };
+  } catch (e) { return { ok: false, why: `published policy not readable (${String(e.message ?? e).slice(0, 80)})` }; }
+}
+
 /** gate.policy.json (or another file) → policy object. */
 export function readPolicy(file = POLICY_FILE) {
   return JSON.parse(readFileSync(file, 'utf8'));
@@ -189,8 +248,10 @@ async function main() {
   if (opt('max-anchor-age-h') !== undefined) policy.maxAnchorAgeH = Number(opt('max-anchor-age-h'));
   if (opt('max-daily-usd') !== undefined) policy.maxDailyUsd = Number(opt('max-daily-usd'));
   const anchor = opt('anchor-time') ? { timeMs: Date.parse(opt('anchor-time')) } : opt('account') ? await readRegistryAnchor(opt('account'), opt('network', 'mainnet')) : { error: 'no --account and no --anchor-time' };
-  const to = (opt('to') ?? '').split(',').filter(Boolean).map((address) => ({ address, chain: opt('chain') }));
-  const r = evaluate({ rows, anchor, policy, pendingUsd: Number(opt('pending-usd')), nowMs, failOpen: has('fail-open'), to });
+  const to = (opt('to') ?? '').split(',').filter(Boolean).map((address) => ({ address, chain: opt('chain'), ...(opt('recipient') ? { recipient: opt('recipient') } : {}) }));
+  const facts = has('no-code-check') ? {} : await readFacts(to);
+  const published = has('require-published') ? await checkPublished(opt('policy') ? path.resolve(opt('policy')) : POLICY_FILE) : undefined;
+  const r = evaluate({ rows, anchor, policy, pendingUsd: Number(opt('pending-usd')), nowMs, failOpen: has('fail-open'), to, facts, published });
   console.log(JSON.stringify({ ...r, anchorSeq: anchor.seq }));
   process.exit(r.allow ? 0 : 1);
 }

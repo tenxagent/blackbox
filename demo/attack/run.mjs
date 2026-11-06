@@ -25,7 +25,9 @@ import { canon } from '../../src/canon.mjs';
 
 const HERE = (f) => fileURLToPath(new URL(f, import.meta.url));
 export const PINNED = { historyUpToSeq: 3453, anchorTime: '2026-11-05T22:31:00Z', now: '2026-11-05T23:01:00Z', usdgBalance: 22.15533 };
-const RELAY_PROXY = '0x5567954cd026cebfe486062cb75848e0f1c12e58';
+const RELAY_PROXY = '0x5567954cd026cebfe486062cb75848e0f1c12e58', SELF = '0x00731cd9e0bc7cad1b54f85187b09b942cd3be04';
+// Relay's code hash as eth_getProof returned it on 2026-11-06 (the live wrapper reads it on every send; this demo is offline)
+const RELAY_READ = { [`robinhood:${RELAY_PROXY}`]: { codeHash: '0xb5d50ef33744b33991a3c57d8c7db101b068b65403588edd50435be53020b44c', nonce: 1 } };
 const DEMO_AGENT = 'blackbox-demo:attack';
 
 /** The fooled agent: the first 0x address in the text is the payee; "FULL … balance" means everything it holds. */
@@ -40,11 +42,11 @@ export async function runDemo() {
   const history = readRows(HERE('../../data/records.jsonl')).filter((r) => r.seq <= PINNED.historyUpToSeq);
   const nowMs = Date.parse(PINNED.now), anchor = { timeMs: Date.parse(PINNED.anchorTime) };
   const ask = obey(readFileSync(HERE('message.txt'), 'utf8'), PINNED.usdgBalance);
-  const run = (req, pol = policy) => evaluate({ rows: history, anchor, policy: pol, pendingUsd: req.pendingUsd, nowMs, to: req.to });
+  const run = (req, pol = policy) => evaluate({ rows: history, anchor, policy: pol, pendingUsd: req.pendingUsd, nowMs, to: req.to, facts: req.facts ?? {} });
   const scenarios = [
     { name: 'injected payee, real policy', req: ask, r: run(ask) },
     { name: 'injected payee, demo blocklist', req: ask, r: run(ask, { ...policy, block: JSON.parse(readFileSync(HERE('blocklist.json'), 'utf8')).block }) },
-    { name: 'control: same amount to Relay', req: { ...ask, what: 'control: same amount to Relay approvalProxy', to: [{ address: RELAY_PROXY, chain: 'robinhood', role: 'approve spender' }] } },
+    { name: 'control: same amount to Relay', req: { ...ask, what: 'control: same amount to Relay approvalProxy', to: [{ address: RELAY_PROXY, chain: 'robinhood', role: 'approve spender', recipient: SELF }], facts: RELAY_READ } },
   ];
   scenarios[2].r = run(scenarios[2].req);
   // the rows the agent's lib/gate.mjs writes for these decisions, then the agent's real export rules and the hash chain

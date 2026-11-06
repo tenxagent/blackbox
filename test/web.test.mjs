@@ -1,7 +1,7 @@
 // The browser verifier's logic, run in Node (same module the page loads).
 import { assert, netOrSkip } from './lib.mjs';
 import { readFileSync } from 'node:fs';
-import { checkRecords, describe, readNearAnchor, coverageSummary } from '../web/verify.js';
+import { checkRecords, describe, readNearAnchor, coverageSummary, nearRpc } from '../web/verify.js';
 import { canon } from '../src/canon.mjs';
 
 const text = readFileSync(new URL('../data/records.jsonl', import.meta.url), 'utf8');
@@ -90,6 +90,20 @@ export const tests = [
       return netOrSkip(async () => {
         assert.equal(await readNearAnchor('testnet', 'a'.repeat(64)), null);
       });
+    },
+  },
+  {
+    name: 'page NEAR reads: a rate limit or a dead endpoint moves on to the next RPC; a contract error does not',
+    async fn() {
+      const net = { rpcs: ['https://a.example', 'https://b.example', 'https://c.example'] }, seen = [];
+      const fake = (replies) => async (url) => { seen.push(new URL(url).host); const r = replies[new URL(url).host]; if (r === 'down') throw new Error('fetch failed');
+        return { status: r.status ?? 200, json: async () => r.body }; };
+      const ok = await nearRpc(net, 'block', {}, fake({ 'a.example': { status: 429, body: {} }, 'b.example': { body: { error: { code: -429, message: 'Rate limits exceeded' } } }, 'c.example': { body: { result: { x: 1 } } } }));
+      assert.deepEqual(ok, { x: 1 }); assert.deepEqual(seen, ['a.example', 'b.example', 'c.example']);
+      seen.length = 0;
+      await assert.rejects(nearRpc(net, 'query', {}, fake({ 'a.example': { body: { result: { error: 'wasm execution failed' } } } })), /wasm execution failed/);
+      assert.deepEqual(seen, ['a.example']);
+      await assert.rejects(nearRpc(net, 'block', {}, fake({ 'a.example': 'down', 'b.example': 'down', 'c.example': 'down' })), /every endpoint/);
     },
   },
 ];
