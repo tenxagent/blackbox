@@ -109,7 +109,7 @@ export const tests = [
       const read = { ...REAL, [`robinhood:${H3}`]: { ...REAL[`robinhood:${H3}`], tx: { ...REAL[`robinhood:${H3}`].tx, input } } };
       const after = (shownTxs) => [gate(3397, '2026-11-07T10:00:00.000Z', 'near fund 1 USDG -> NEAR', 1), { ...RECORDS[3], row: { ...RECORDS[3].row, t: '2026-11-07T10:00:05.000Z' } }]
         .map((x, i) => (i === 0 ? { ...x, row: { ...x.row, ...(shownTxs ? { shownTxs } : {}) } } : x));
-      const go = (shownTxs) => judgeFlows({ records: after(shownTxs), policy, read, oneClick: ONECLICK, wallet: W });
+      const go = (shownTxs) => judgeFlows({ records: after(shownTxs), policy, read, oneClick: ONECLICK, wallet: W, anchorSince: '2099-01-01T00:00:00Z' });   // anchor check: next test
       const ok = go([{ ...signed, digest: txDigest(signed) }]);
       assert.deepEqual(ok.findings, []); assert.equal(ok.results[0].txs[0].shownToGate, true);
       const other = { ...signed, data: input.slice(0, -2) + '01' };   // the gate saw a different amount
@@ -117,5 +117,29 @@ export const tests = [
       const none = go(null);
       assert.deepEqual(kinds(none), ['tx_not_shown_to_gate']); assert.match(none.findings[0].why, /lists no transactions/);
       assert.equal(run().results[1].txs[0].shownToGate, undefined);   // the 11-05 sends predate the cutover: not checked
+    } },
+  { name: 'anchor-before-send (2026-11-06): a registry head at seq ≥ the decision, matching the records, written before the tx block; else not_anchored_before_send',
+    fn() {
+      const input = '0xa9059cbb' + DEP.slice(2).padStart(64, '0') + (1000000).toString(16).padStart(64, '0');
+      const signed = { chain: 'robinhood', to: USDG, data: input, value: '0x0' };
+      const blockAt = '2026-11-07T10:00:05.000Z';
+      const read = { ...REAL, [`robinhood:${H3}`]: { ...REAL[`robinhood:${H3}`], tx: { ...REAL[`robinhood:${H3}`].tx, input }, blockTime: Date.parse(blockAt) / 1000 } };
+      const records = [{ ...gate(3397, '2026-11-07T10:00:00.000Z', 'near fund 1 USDG -> NEAR', 1), row: { ...gate(3397, '2026-11-07T10:00:00.000Z', 'near fund 1 USDG -> NEAR', 1).row, shownTxs: [{ ...signed, digest: txDigest(signed) }] } },
+        { ...RECORDS[3], row: { ...RECORDS[3].row, t: '2026-11-07T10:00:06.000Z' } }];
+      const heads = Array.from({ length: 3400 }, (_, i) => (i % 2 ? 'aa' : 'bb').repeat(32));
+      const anc = (seq, at, head = heads[seq]) => ({ seq, head, timestampNs: BigInt(Date.parse(at)) * 1_000_000n, time: at });
+      const go = (anchors, r = read) => judgeFlows({ records, policy, read: r, oneClick: ONECLICK, wallet: W, anchors, heads });
+      const ok = go([anc(3300, '2026-11-07T06:31:40.000Z'), anc(3398, '2026-11-07T10:00:02.500Z')]);
+      assert.deepEqual(ok.findings, []);
+      assert.deepEqual(ok.results[0].txs[0].anchoredBefore, { seq: 3398, time: '2026-11-07T10:00:02.500Z' });
+      assert.deepEqual(kinds(go([anc(3398, '2026-11-07T10:00:05.000Z')])), ['not_anchored_before_send']);    // same instant as the block: not before
+      assert.deepEqual(kinds(go([anc(3396, '2026-11-07T09:59:59.000Z')])), ['not_anchored_before_send']);    // older than the decision itself
+      assert.deepEqual(kinds(go([anc(3398, '2026-11-07T10:00:02.000Z', 'cc'.repeat(32))])), ['not_anchored_before_send']);   // a head these records do not have
+      assert.deepEqual(kinds(go([anc(3500, '2026-11-07T10:00:02.000Z', 'cc'.repeat(32))])), ['not_anchored_before_send']);   // beyond the records: cannot be checked
+      const unread = go(null);
+      assert.deepEqual(kinds(unread), ['not_anchored_before_send']); assert.match(unread.findings[0].why, /registry could not be read/);
+      const { blockTime, ...noTime } = read[`robinhood:${H3}`];
+      assert.match(go([anc(3398, '2026-11-07T10:00:02.000Z')], { ...read, [`robinhood:${H3}`]: noTime }).findings[0].why, /block time/);
+      assert.equal(run({ anchors: [], heads }).results[1].txs[0].anchoredBefore, undefined);   // the 11-05 sends predate it: not checked
     } },
 ];

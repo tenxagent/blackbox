@@ -5,7 +5,10 @@
 //     for a 1Click deposit, to the deposit address in the record. Then 1Click's own status record for that address must say the
 //     quote pays the agent's NEAR account, refunds to the agent's wallet, and names this tx;
 //   - the USDG that left the wallet (1 USDG = $1) must not exceed the USD the gate decision before the send was told, and no
-//     approval may be larger than that amount.
+//     approval may be larger than that amount;
+//   - from ANCHOR_BEFORE_SEND_SINCE: the locked registry must hold a head at a seq ≥ the gate decision's, matching these records
+//     (data/heads.txt), written by the contract's clock BEFORE the block that holds the tx (not_anchored_before_send). This one is
+//     not after the fact: it shows the decision was public on NEAR before the money moved.
 // Anything else is a finding with the record's seq. This is DETECTION AFTER THE FACT, not prevention: the money has already
 // moved, and this names the record (the cycle runs it, so within one cycle). It reads only the first hop: the public Robinhood
 // Chain RPC has no traces, so what a router does next (e.g. a Relay swap whose own calldata names another recipient) is not
@@ -20,7 +23,9 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { gateCoverage, readPolicy, readRows, txDigest, CHAIN_RPC, GATE_LIVE_SINCE, GATED_SENDS, TX_BOUND_SINCE } from './gate.mjs';
+import { gateCoverage, readPolicy, readRows, txDigest, CHAIN_RPC, GATE_LIVE_SINCE, GATED_SENDS, TX_BOUND_SINCE, ANCHOR_BEFORE_SEND_SINCE, AGENT_NEAR_ACCOUNT, REGISTRY } from './gate.mjs';
+import * as nearRpc from './near/rpc.mjs';
+import { readAllAnchors } from './registry.mjs';
 import { chainOf, rpc } from './rh-proof.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -80,7 +85,8 @@ export function historyPairs(records, { since = GATE_LIVE_SINCE } = {}) {
 
 /** Pure: the gated sends + what the chain and 1Click said → per-send result and findings. read = { 'chain:tx': {tx, receipt} | {error} },
  *  oneClick = { depositAddress (lower case): status | {error} }. */
-export function judgeFlows({ records, policy, read, oneClick = {}, wallet, since = GATE_LIVE_SINCE, pairs = null, boundSince = TX_BOUND_SINCE }) {
+export function judgeFlows({ records, policy, read, oneClick = {}, wallet, since = GATE_LIVE_SINCE, pairs = null, boundSince = TX_BOUND_SINCE,
+  anchors = null, heads = null, anchorSince = ANCHOR_BEFORE_SEND_SINCE }) {
   const cov = gateCoverage(records, { since });
   const bySeq = new Map(records.map((r) => [r.seq, r]));
   const sends = [], findings = [];
@@ -114,7 +120,18 @@ export function judgeFlows({ records, policy, read, oneClick = {}, wallet, since
           ? `the tx on chain (to ${norm(r.tx.to)}, ${String(r.tx.input ?? '0x').slice(0, 10)}) is not one of the ${digests.size} the gate decision #${p.gateSeq} was shown`
           : `the gate decision #${p.gateSeq} lists no transactions: the caller did not show the gate what it signed` });
       }
-      s.txs.push({ tx: h, result: Number(r.receipt.status) === 1 ? 'ok' : 'reverted', flows, ...(shown === null ? {} : { shownToGate: shown }) });
+      // 2026-11-06 anchor-before-send: a registry head covering the decision, matching these records, older than the tx's block
+      let anchored = null;
+      if (p.gateSeq != null && Date.parse(g.t) >= Date.parse(anchorSince)) {
+        const txMs = r.blockTime != null ? Number(r.blockTime) * 1000 : null;
+        const hit = txMs == null || !Array.isArray(anchors) || !Array.isArray(heads) ? null
+          : anchors.find((a) => a.seq >= p.gateSeq && a.seq < heads.length && heads[a.seq] === a.head && Number(BigInt(a.timestampNs) / 1_000_000n) < txMs);
+        anchored = hit ? { seq: hit.seq, time: hit.time } : false;
+        if (!hit) findings.push({ seq: rec.seq, tx: h, kind: 'not_anchored_before_send', why: !Array.isArray(anchors) ? 'the registry could not be read'
+          : txMs == null ? "the tx's block time could not be read"
+          : `no registry head at seq ≥ ${p.gateSeq} (the gate decision) that matches these records was written before the tx's block (${new Date(txMs).toISOString()})` });
+      }
+      s.txs.push({ tx: h, result: Number(r.receipt.status) === 1 ? 'ok' : 'reverted', flows, ...(shown === null ? {} : { shownToGate: shown }), ...(anchored === null ? {} : { anchoredBefore: anchored }) });
     }
     s.usdOut = Math.round(s.usdOut * 1e6) / 1e6;
     if (s.gateUsd !== null && s.usdOut > s.gateUsd * 1.02 + 0.01) findings.push({ seq: rec.seq, kind: 'amount_over_gate', why: `$${s.usdOut} USDG left the wallet; the gate was told $${s.gateUsd}` });
@@ -126,16 +143,24 @@ export function judgeFlows({ records, policy, read, oneClick = {}, wallet, since
 }
 
 /** Network side: read every tx of the gated sends and 1Click's record of every deposit address. */
-export async function readFlowsInput(records, { since = GATE_LIVE_SINCE, rpcs = CHAIN_RPC, oneClickApi = '1click.chaindefuser.com', pairs = null, pauseMs = 300 } = {}) {
+export async function readFlowsInput(records, { since = GATE_LIVE_SINCE, rpcs = CHAIN_RPC, oneClickApi = '1click.chaindefuser.com', pairs = null, pauseMs = 300,
+  anchorSince = ANCHOR_BEFORE_SEND_SINCE, account = AGENT_NEAR_ACCOUNT } = {}) {
   const cov = gateCoverage(records, { since }), bySeq = new Map(records.map((r) => [r.seq, r])), read = {}, oneClick = {};
+  let anchors = null, needAnchors = false;
   for (const p of pairs ?? cov.pairs) {
     const rec = bySeq.get(p.seq), chain = chainOf(rec.row).chain ?? 'robinhood';
+    const needTime = p.gateSeq != null && Date.parse(bySeq.get(p.gateSeq)?.row?.t) >= Date.parse(anchorSince);
+    needAnchors ||= needTime;
     for (const h of rec.txs ?? []) {
       const key = `${chain}:${norm(h)}`;
       if (!rpcs[chain]) { read[key] = { error: `no RPC for ${chain}` }; continue; }
       try {
         const [tx, receipt] = [await rpc('eth_getTransactionByHash', [h], { url: rpcs[chain] }), await rpc('eth_getTransactionReceipt', [h], { url: rpcs[chain] })];
         read[key] = tx && receipt ? { tx, receipt } : { error: 'no such tx on this chain' };
+        if (needTime && receipt?.blockNumber) {   // the block's own time: what the anchor must be older than
+          const b = await rpc('eth_getBlockByNumber', [receipt.blockNumber, false], { url: rpcs[chain] });
+          if (b?.timestamp) read[key].blockTime = Number(BigInt(b.timestamp));
+        }
       } catch (e) { read[key] = { error: String(e.message ?? e).slice(0, 120) }; }
       await new Promise((ok) => setTimeout(ok, pauseMs));   // keep the load on the public RPCs low (Elysium rate-limits)
     }
@@ -147,21 +172,26 @@ export async function readFlowsInput(records, { since = GATE_LIVE_SINCE, rpcs = 
       } catch (e) { oneClick[dep] = { error: String(e.message ?? e).slice(0, 120) }; }
     }
   }
-  return { read, oneClick };
+  if (needAnchors) {
+    try { const url = nearRpc.rpcUrl('mainnet'); anchors = await readAllAnchors((m, a) => nearRpc.callFunction(url, REGISTRY, m, a), account); } catch { anchors = null; }
+  }
+  return { read, oneClick, anchors };
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const records = readRows(path.join(ROOT, 'data', 'records.jsonl')), policy = readPolicy();
   const wallet = (policy.self ?? []).find((s) => s.chain === 'robinhood')?.address;
   const history = process.argv.includes('--history'), pairs = history ? historyPairs(records) : null;
-  const { read, oneClick } = await readFlowsInput(records, { pairs });
-  const r = judgeFlows({ records, policy, read, oneClick, wallet, pairs });
+  const { read, oneClick, anchors } = await readFlowsInput(records, { pairs });
+  const heads = readFileSync(path.join(ROOT, 'data', 'heads.txt'), 'utf8').trim().split('\n');
+  const r = judgeFlows({ records, policy, read, oneClick, wallet, pairs, anchors, heads });
   for (const s of r.results) {
     console.log(`seq ${s.seq} ${s.action} (${s.chain}; ${s.gateSeq == null ? 'no gate decision' : `gate decision seq ${s.gateSeq} was told $${s.gateUsd}`}): $${s.usdOut} USDG left the wallet`);
     for (const t of s.txs) {
       if (!t.flows) { console.log(`  ${t.tx.slice(0, 12)}… NOT READ: ${t.error}`); continue; }
       for (const f of t.flows) console.log(`  ${t.tx.slice(0, 12)}… ${f.ok ? 'ok ' : 'BAD'} ${f.kind} ${f.usd !== null && f.usd !== undefined ? `$${f.usd} ` : ''}to ${f.to} (${f.label})${f.oneClick ? ` · 1Click: ${f.oneClick.status}, pays ${f.oneClick.recipient}${f.oneClick.appFeeBps ? `, app fee ${f.oneClick.appFeeBps} bps in the quote` : ''}${f.oneClick.why ? ` · ${f.oneClick.why}` : ''}` : ''}`);
       if (!t.flows.length) console.log(`  ${t.tx.slice(0, 12)}… nothing left the wallet in this tx`);
+      if (t.anchoredBefore) console.log(`  ${t.tx.slice(0, 12)}… the gate decision was on NEAR first: registry head seq ${t.anchoredBefore.seq} written ${t.anchoredBefore.time}`);
     }
   }
   console.log(`\n${r.sends} ${history ? 'send(s) of the gated tools (all time)' : 'gated send(s)'}, ${r.txs} tx(s) read: ${r.findings.length ? `${r.findings.length} FINDING(S)` : 'every first hop went to the agent or a listed contract'}`);

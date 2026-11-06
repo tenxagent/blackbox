@@ -63,7 +63,8 @@ export function flowsSummary(fl) {
     seq: s.seq, t: s.t ?? null,
     head: `${words(s.action)} on ${CHAINS[s.chain] ?? s.chain}: ${s.gateSeq == null ? 'no gate decision' : `the gate (#${s.gateSeq}) was told ${usd(s.gateUsd)}`}; ${usd(s.usdOut)} USDG left the wallet.`,
     txs: (s.txs ?? []).map((t) => ({ tx: t.tx, chain: s.chain, ok: Array.isArray(t.flows) && t.flows.every((f) => f.ok),
-      text: !Array.isArray(t.flows) ? `✗ not read: ${t.error}` : !t.flows.length ? 'nothing left the wallet' : t.flows.map(flowText).join('; ') })),
+      text: (!Array.isArray(t.flows) ? `✗ not read: ${t.error}` : !t.flows.length ? 'nothing left the wallet' : t.flows.map(flowText).join('; '))
+        + (t.anchoredBefore ? ` · ✓ the decision was on NEAR first (registry head seq ${t.anchoredBefore.seq}, ${when(t.anchoredBefore.time)}Z)` : t.anchoredBefore === false ? ' · ✗ not anchored on NEAR before this tx' : '') })),
   }));
   let text = `${n(fl.sends ?? 0, 'gated send')} since the gate went live (${when(fl.since)}Z), ${n(fl.txs ?? 0, 'transaction')} read back from the chain${fl.at ? ` when data/flows.json was written (${when(fl.at)}Z)` : ''}. `;
   if (findings.length || missing.length) {
