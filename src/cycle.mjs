@@ -20,7 +20,7 @@ const SEND = process.argv.includes('--send');
 const CONFIG = path.resolve(process.argv.includes('--config') ? process.argv[process.argv.indexOf('--config') + 1] : path.join(ROOT, 'blackbox.config.json'));
 const LEDGER = process.env.BLACKBOX_LEDGER || 'ledger.jsonl'   // the operator sets BLACKBOX_LEDGER; no server path in the public code;
 const REPO_RAW = 'https://raw.githubusercontent.com/tenxagent/blackbox';
-const DATA = ['data/records.jsonl', 'data/manifest.json', 'data/checkpoints.json', 'data/heads.txt', 'data/rh-proof.json', 'data/coverage.json'];
+const DATA = ['data/records.jsonl', 'data/manifest.json', 'data/checkpoints.json', 'data/heads.txt', 'data/rh-proof.json', 'data/coverage.json', 'data/flows.json'];
 const run = (args, opts = {}) => execFileSync('node', args, { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 << 20, ...opts });
 const git = (...args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' }).trim();
 const fail = (m) => { console.error('cycle: ' + m); process.exit(1); };
@@ -58,6 +58,8 @@ if (git('status', '--porcelain')) {
   if (t.status !== 0 || !/ 0 failed/.test(tl)) { git('checkout', '--', ...DATA); fail('tests failed after export, data reverted: ' + tl + (failed ? ' — ' + failed : '')); }
   // 11-03 (screening): measured coverage + README numbers regenerated from this data, committed with it. Neither may block the anchor.
   try { run(['src/coverage.mjs']); } catch (e) { console.log('coverage skipped:', String(e.message).slice(0, 120)); }
+  // 11-06: where the money of each gated send went (first hop on chain + 1Click's record). Exit 1 = a finding; data/flows.json is written either way.
+  try { run(['src/flows.mjs', '--write']); } catch (e) { console.log('flows: FINDING or unread tx, see data/flows.json:', String(e.stdout ?? e.message).split('\n').filter((l) => /FINDING|NOT READ/.test(l)).join(' | ').slice(0, 300)); }
   try { run(['src/readme-numbers.mjs', '--tests', tl]); } catch (e) { console.log('readme numbers skipped:', String(e.message).slice(0, 120)); }
   const f = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/checkpoints.json'), 'utf8')).final;
   git('add', ...DATA.filter((p) => fs.existsSync(path.join(ROOT, p))), 'README.md');

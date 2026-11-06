@@ -175,7 +175,7 @@ export const GATE_LIVE_SINCE = '2026-11-05T18:12:53.902Z';   // the first gate r
 
 /** rows: records or raw ledger rows. → {since, sends, covered, bypassed, missing: [{seq, t, action}]}. Pure. */
 export function gateCoverage(rows, { since = GATE_LIVE_SINCE, windowMin = 15 } = {}) {
-  const sinceMs = Date.parse(since), used = new Set(), out = { since, windowMin, sends: 0, covered: 0, bypassed: 0, missing: [] };
+  const sinceMs = Date.parse(since), used = new Set(), out = { since, windowMin, sends: 0, covered: 0, bypassed: 0, missing: [], pairs: [] };
   const list = rows.map((x, i) => ({ i, seq: x?.seq ?? null, r: x?.row ?? x })).filter((x) => x.r && Date.parse(x.r.t) >= sinceMs);
   for (const s of list) {
     const kind = GATED_SENDS.find((k) => k.engine === s.r.engine && k.action === s.r.action);
@@ -186,6 +186,7 @@ export function gateCoverage(rows, { since = GATE_LIVE_SINCE, windowMin = 15 } =
       && kind.what.test(String(x.r.what ?? '')) && t - Date.parse(x.r.t) <= windowMin * 60e3).pop();
     if (!g) { out.missing.push({ seq: s.seq, t: s.r.t, action: s.r.action }); continue; }
     used.add(g.i);
+    out.pairs.push({ seq: s.seq, gateSeq: g.seq, action: g.r.action });   // which decision covered which send (src/flows.mjs)
     if (g.r.action === 'gate_bypass') out.bypassed++; else out.covered++;
   }
   return out;

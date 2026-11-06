@@ -26,6 +26,15 @@
   },
   {
    "chain": "robinhood",
+   "address": "0x0729e2a4716d9f7dd17858d5d504426d228697f7",
+   "label": "Relay erc20Router (v3.2) on Robinhood Chain",
+   "source": "https://api.relay.link/chains, chain 4663, contracts.erc20Router (v3.2); the approvalProxy moves the agent's tokens into it (relay_swap seq 3395, tx 0x7db041e9…), found by src/flows.mjs",
+   "codeHash": "0x2c4c1b3111251359e5b023c8dee4e02cbbbb7136f1497f8b1088fe04f07df516",
+   "added": "2026-11-06T03:15Z",
+   "forwards": true
+  },
+  {
+   "chain": "robinhood",
    "address": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
    "label": "Relay depository (protocol v2) on Robinhood Chain",
    "source": "https://api.relay.link/chains, chain 4663, protocol.v2.depository; used by sleeve_fund_relay_deposit (seq 2696)",
