@@ -2,7 +2,8 @@
 // Black box on its own detects tampering after the fact; this turns the same log into three rules that can refuse a send:
 //
 //   1. Anchor freshness. The newest head in the append-only registry must be younger than maxAnchorAgeH (default 20 h,
-//      two missed 8-hourly cycles). If the log is not being anchored, the agent does not spend. If the registry cannot be
+//      two missed 8-hourly cycles; only anchors pinned to a published commit count, not pre-send ones). If the log is not being
+//      published and anchored, the agent does not spend. If the registry cannot be
 //      read, the gate refuses (fail closed); --fail-open skips only this rule, for offline demos.
 //   2. Spend cap. The USD of this send plus the USD of every send the gate ALLOWED in the last 24 h must stay within
 //      maxDailyUsd (default 30). The gate counts its own approvals (rows with action "gate_allow" and a pendingUsd
@@ -41,7 +42,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as rpc from './near/rpc.mjs';
-import { getAgentArgs, parseAgent } from './registry.mjs';
+import { readAllAnchors } from './registry.mjs';
 
 export const REGISTRY = '08035588c459e514c632061fb4862fde62297571f1e44716e01bcc9913986e8a';
 export const DEFAULT_POLICY = { maxAnchorAgeH: 20, maxDailyUsd: 30 };
@@ -66,13 +67,18 @@ const sameChain = (entry, c) => !!c.chain && norm(entry.chain) === norm(c.chain)
 const key = (chain, address) => `${norm(chain)}:${norm(address)}`;
 
 /** (chain, address) pairs the gate approved sends to before nowMs → Map('chain:address' → count). Counts only rows that carry
- *  per-counterparty chains (written since 2026-11-06); a row's bare `to` list has no chain and counts for nothing. Pure. */
+ *  per-counterparty chains (written since 2026-11-06); a row's bare `to` list has no chain and counts for nothing. An address that
+ *  was allowed only because a trusted API issued it (a 1Click deposit address: one per quote) never counts (screen 5 Z-3: reusing
+ *  it without provenance, or with another recipient, passed through this path). Pure. */
 export function priorApproved(rows, nowMs) {
   const seen = new Map();
   for (const x of rows) {
     const r = x?.row ?? x;
     if (r?.engine !== 'gate' || r.action !== 'gate_allow' || !Array.isArray(r.counterparties) || !(Date.parse(r.t) <= nowMs)) continue;
-    for (const c of r.counterparties) if (c?.chain && c.address) seen.set(key(c.chain, c.address), (seen.get(key(c.chain, c.address)) ?? 0) + 1);
+    for (const c of r.counterparties) {
+      const viaApi = c?.via === 'api' || c?.provenance || c?.apiRecord || /^from a trusted API/.test(c?.why ?? '');
+      if (c?.chain && c.address && !viaApi) seen.set(key(c.chain, c.address), (seen.get(key(c.chain, c.address)) ?? 0) + 1);
+    }
   }
   return seen;
 }
@@ -105,7 +111,7 @@ export function judgeCounterparty(c, policy, prior, facts = {}) {
     }
     const fwd = forwardProblem(listed, c, policy);
     if (fwd) return { ...out, verdict: 'warn', why: fwd };
-    return { ...out, verdict: 'allow', why: `allow-listed: ${listed.label}` };
+    return { ...out, verdict: 'allow', via: 'allowlist', why: `allow-listed: ${listed.label}` };
   }
   const api = c.provenance?.api && (policy.trustedApis ?? []).find((e) => norm(e.api) === norm(c.provenance.api));
   if (api?.status) {   // 2026-11-06: the API's own record of this address decides, not the caller's label (readApiFacts)
@@ -120,17 +126,17 @@ export function judgeCounterparty(c, policy, prior, facts = {}) {
     if (why.length) return { ...out, verdict: 'warn', why: `${api.label}: ${why.join('; ')}`, provenance: c.provenance, apiRecord: rec };
     const fwd = forwardProblem(api, { ...c, recipient: rec.recipient }, policy);
     if (fwd) return { ...out, verdict: 'warn', why: fwd, provenance: c.provenance, apiRecord: rec };
-    return { ...out, verdict: 'allow', why: `from a trusted API: ${api.label}; its own record (${rec.status}) pays the agent and refunds to it`, provenance: c.provenance, apiRecord: rec };
+    return { ...out, verdict: 'allow', via: 'api', why: `from a trusted API: ${api.label}; its own record (${rec.status}) pays the agent and refunds to it`, provenance: c.provenance, apiRecord: rec };
   }
   if (api) {
     const fwd = forwardProblem(api, c, policy);
     if (fwd) return { ...out, verdict: 'warn', why: fwd, provenance: c.provenance };
-    return { ...out, verdict: 'allow', why: `from a trusted API: ${api.label}`, provenance: c.provenance };
+    return { ...out, verdict: 'allow', via: 'api', why: `from a trusted API: ${api.label}`, provenance: c.provenance };
   }
   const human = (policy.humanApproved ?? []).find((e) => norm(e.address) === addr && sameChain(e, c));
-  if (human) return { ...out, verdict: 'allow', why: `approved by a human: ${human.by}, ${human.at} (counts only from the published policy)` };
+  if (human) return { ...out, verdict: 'allow', via: 'human', why: `approved by a human: ${human.by}, ${human.at} (counts only from the published policy)` };
   const n = prior.get(key(c.chain, addr)) ?? 0;
-  if (n > 0) return { ...out, verdict: 'allow', why: `prior interaction: ${n} earlier approved send${n > 1 ? 's' : ''}` };
+  if (n > 0) return { ...out, verdict: 'allow', via: 'prior', why: `prior interaction: ${n} earlier approved send${n > 1 ? 's' : ''}` };
   const fresh = facts.nonce === 0 && facts.codeHash === null ? '; fresh address (0 txs, no code)' : '';
   return { ...out, verdict: 'warn', why: `unknown counterparty: not allow-listed, not from a trusted API, never approved${fresh} ⇒ ask a human` };
 }
@@ -197,7 +203,7 @@ export function evaluate({ rows, anchor, policy = {}, pendingUsd, nowMs, failOpe
     if (failOpen) notes.push(`${why}; --fail-open: rule 1 skipped`); else reasons.push(`${why}: refusing (fail closed)`);
   } else {
     anchorAgeH = (nowMs - anchor.timeMs) / 3.6e6;
-    if (anchorAgeH > p.maxAnchorAgeH) reasons.push(`newest anchor is ${anchorAgeH.toFixed(1)} h old (> ${p.maxAnchorAgeH} h): the log is not being anchored`);
+    if (anchorAgeH > p.maxAnchorAgeH) reasons.push(`newest published anchor is ${anchorAgeH.toFixed(1)} h old (> ${p.maxAnchorAgeH} h): the log is not being published and anchored`);
   }
   const spent24h = spentLast24h(rows, nowMs);
   const list = (Array.isArray(to) ? to : to ? [to] : []).map((c) => (typeof c === 'string' ? { address: c } : c));
@@ -233,13 +239,22 @@ export function evaluate({ rows, anchor, policy = {}, pendingUsd, nowMs, failOpe
     ...(dec ? { shownTxs: dec.shown, shownUsd: dec.usd } : {}) };
 }
 
-/** Newest registry anchor of `account` → {timeMs, seq} or {error}. */
+/** A records_url pinned to a commit (what the cycle writes after publishing), not to a branch like main (what a pre-send anchor
+ *  writes before its records are published). */
+export const isPinned = (url) => /\/[0-9a-f]{40}\/data\/records\.jsonl$/.test(String(url ?? ''));
+/** Rule 1 reads the newest PUBLISHED anchor (screen 5 Z-1): pre-send anchors point at main and would otherwise keep the gate
+ *  "fresh" while the publishing cycle had stopped. anchors = parsed registry anchors (registry.mjs). Pure. */
+export function newestPublished(anchors) {
+  const a = [...(anchors ?? [])].reverse().find((x) => isPinned(x.recordsUrl));
+  return a ? { timeMs: Number(BigInt(a.timestampNs) / 1_000_000n), seq: a.seq } : { error: 'no anchor pinned to a published commit' };
+}
+/** Newest published registry anchor of `account` → {timeMs, seq, newestSeq} or {error}. */
 export async function readRegistryAnchor(account, network = 'mainnet') {
   try {
-    const res = await rpc.callFunction(rpc.rpcUrl(network), REGISTRY, 'get_agent', getAgentArgs(account));
-    const agent = parseAgent(res.value);
-    if (!agent?.last) return { error: 'agent has no anchors' };
-    return { timeMs: Number(agent.last.timestampNs / 1_000_000n), seq: agent.last.seq };
+    const url = rpc.rpcUrl(network);
+    const anchors = await readAllAnchors((m, a) => rpc.callFunction(url, REGISTRY, m, a), account);
+    if (!anchors.length) return { error: 'agent has no anchors' };
+    return { ...newestPublished(anchors), newestSeq: anchors.at(-1).seq };
   } catch (e) { return { error: String(e.message ?? e).slice(0, 160) }; }
 }
 

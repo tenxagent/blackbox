@@ -72,10 +72,20 @@ async function read() {
   const last = anchors[anchors.length - 1];
   console.log(`agent        ${account}: ${agent.agent_id ?? agent.agentId ?? ''} · ${anchors.length} anchors, newest seq ${last?.seq} head ${last?.head.slice(0, 8)}…${last?.head.slice(-4)}`);
   const bytes = anchorBytes(account, last?.recordsUrl ?? last?.records_url ?? ''), left = anchorsLeft(agent.storageBalance, bytes);
-  console.log(`storage      prepaid ${(Number(agent.storageBalance) / 1e24).toFixed(5)} NEAR ≈ ${left} more anchors at ${bytes} B each (top up: deposit --amount)`);
+  // screen 5 (Z-4): at the last 3 days' anchoring rate, when does the prepaid storage run out?
+  const now = Date.now(), perDay = anchors.filter((a) => now - Date.parse(a.time) < 3 * 864e5).length / 3;
+  const runsOut = perDay > 0 ? new Date(now + (left / perDay) * 864e5).toISOString().slice(0, 10) : null;
+  console.log(`storage      prepaid ${(Number(agent.storageBalance) / 1e24).toFixed(5)} NEAR ≈ ${left} more anchors at ${bytes} B each${runsOut ? `; at ${perDay.toFixed(1)}/day (last 3 days) that runs out ≈ ${runsOut}` : ''} (top up: deposit --amount)`);
   console.log(`local check  ${r.checked} anchored heads compared with ${path.relative(ROOT, dir) || '.'}/heads.txt (${r.missingLocally} beyond the local records): ${r.ok ? 'ALL MATCH' : 'MISMATCH'}`);
   for (const p of r.problems) console.log('  ' + p);
   const locked = keys.length === 0 && acc.code_hash === REGISTRY_CODE_HASH;
+  // screen 5 (Z-2): heads beyond the local records are NOT checked; say which and what they point at, and do not exit 0
+  const beyond = anchors.filter((a) => a.seq >= heads.length);
+  if (r.ok && locked && beyond.length) {
+    const pinned = beyond.filter((a) => /\/[0-9a-f]{40}\/data\/records\.jsonl$/.test(a.recordsUrl ?? ''));
+    console.log(`AHEAD        head(s) at seq ${beyond.map((a) => a.seq).join(', ')} are beyond the local records and NOT checked: ${pinned.length ? `${pinned.length} pinned to a published commit (these local records are missing published ones: pull, or they were dropped)` : 'all pre-send anchors (records_url = main), published by the next cycle'}`);
+    process.exit(3);
+  }
   process.exit(r.ok && locked ? 0 : 1);
 }
 

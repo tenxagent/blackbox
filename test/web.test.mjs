@@ -1,7 +1,7 @@
 // The browser verifier's logic, run in Node (same module the page loads).
 import { assert, netOrSkip } from './lib.mjs';
 import { readFileSync } from 'node:fs';
-import { checkRecords, describe, readNearAnchor, coverageSummary, flowsSummary, nearRpc, anchorState, AHEAD_MAX_H } from '../web/verify.js';
+import { checkRecords, describe, readNearAnchor, coverageSummary, flowsSummary, nearRpc, anchorState, AHEAD_MAX_H, PINNED_GRACE_H, pinnedUrl } from '../web/verify.js';
 import { verifySparse, splitLines } from '../src/chain.mjs';
 import { canon } from '../src/canon.mjs';
 
@@ -10,21 +10,28 @@ const cp = JSON.parse(readFileSync(new URL('../data/checkpoints.json', import.me
 
 export const tests = [
   {
-    name: 'NEAR panels: a head anchored ahead of the published records is amber (never green), red after 24 h or on a real mismatch',
+    name: 'NEAR panels (screen 5 Z-2): a pre-send head beyond the records is amber ≤ 9 h; a head pinned to a published commit is red after 1 h (a dropped tail); unknown age red',
     async fn() {
       const lines = splitLines(text);
-      const n = lines.length, now = Date.parse('2026-11-06T15:00:00Z');
+      const n = lines.length, now = Date.parse('2026-11-06T15:00:00Z'), ago = (h) => new Date(now - h * 3.6e6).toISOString();
+      const MAIN = 'https://raw.githubusercontent.com/tenxagent/blackbox/main/data/records.jsonl';
+      const PIN = 'https://raw.githubusercontent.com/tenxagent/blackbox/722dc32ef3f22222fe585e27231ecf11d3eaa3e4/data/records.jsonl';
+      assert.equal(pinnedUrl(PIN), true); assert.equal(pinnedUrl(MAIN), false);
       const ahead = await verifySparse(lines, [cp.final, { seq: n + 7, head: 'ab'.repeat(32) }], { agentId: cp.agentId });
       assert.deepEqual(ahead.ahead, { seqs: [n + 7], recordsEnd: n });
-      const v = anchorState(ahead, '2026-11-06T14:20:00Z', now);
-      assert.equal(v.state, 'ahead');
-      assert.ok(v.text.includes(`seq ${n + 7} was anchored 40 min ago, AHEAD of the published records (they end at seq ${n})`), v.text);
-      assert.equal(anchorState(ahead, null, now).state, 'ahead');                    // age unknown: still amber, not green
-      const old = anchorState(ahead, new Date(now - (AHEAD_MAX_H + 1) * 3.6e6).toISOString(), now);
-      assert.equal(old.state, 'bad');
-      assert.match(old.text, /still not published/);
+      const pre = anchorState(ahead, [{ seq: n + 7, time: ago(40 / 60), pinned: false }], now);   // a pre-send anchor, 40 min old
+      assert.equal(pre.state, 'ahead');
+      assert.ok(pre.text.includes(`seq ${n + 7} was anchored 40 min ago, beyond these records (they end at seq ${n})`), pre.text);
+      assert.ok(!/gate decision before it signs/.test(pre.text));                                   // no unchecked cause asserted
+      assert.equal(anchorState(ahead, [{ seq: n + 7, time: ago(AHEAD_MAX_H + 0.5), pinned: false }], now).state, 'bad');
+      // the dropped tail: the head is pinned to a commit that WAS published, the records here stop short of it
+      assert.equal(anchorState(ahead, [{ seq: n + 7, time: ago(0.2), pinned: true }], now).state, 'ahead');   // deploy lag: minutes
+      const dropped = anchorState(ahead, [{ seq: n + 7, time: ago(PINNED_GRACE_H + 0.1), pinned: true }], now);
+      assert.equal(dropped.state, 'bad'); assert.match(dropped.text, /published records are missing/);
+      assert.equal(anchorState(ahead, [{ seq: n + 7, time: ago(0.2), pinned: null }], now).state, 'ahead');   // unknown target = pinned rule
+      assert.equal(anchorState(ahead, [], now).state, 'bad');                                              // age unknown: red
       const wrong = await verifySparse(lines, [{ seq: n, head: 'cd'.repeat(32) }], { agentId: cp.agentId });
-      assert.deepEqual(anchorState(wrong, null, now), { state: 'bad' });              // a head that differs inside the records: red
+      assert.deepEqual(anchorState(wrong, [], now), { state: 'bad' });                                       // differs inside the records: red
       const fine = await verifySparse(lines, [cp.final], { agentId: cp.agentId });
       assert.deepEqual(anchorState(fine), { state: 'ok' });
     },

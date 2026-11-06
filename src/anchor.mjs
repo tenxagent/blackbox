@@ -170,7 +170,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${path.resolve(proces
     try { localAgent = loadCheckpoints(dataDir).agentId || AGENT_ID; } catch { /* no checkpoints.json: the constant */ }
     const s = await verifySparse(lines, claims, { agentId: a.agent || localAgent });
     // 11-06: a head anchored before a send can be AHEAD of these records until the next cycle publishes them: not a mismatch, not ok
-    if (!s.ok && s.ahead) { console.log(`AHEAD: local records match every anchored head through seq ${s.okThrough}; head(s) at seq ${s.ahead.seqs.join(', ')} are beyond these records (they end at seq ${s.ahead.recordsEnd}): anchored before the records were published, checked once they are`); process.exit(3); }
+    if (!s.ok && s.ahead) { console.log(`AHEAD: local records match every anchored head through seq ${s.okThrough}; head(s) at seq ${s.ahead.seqs.join(', ')} are beyond these records (they end at seq ${s.ahead.recordsEnd}) and are NOT checked. The latest head's records_url is ${a.records_url}: a pre-send anchor points at main until the next cycle publishes its records; a commit-pinned one means these local records are missing published ones (pull, or they were dropped)`); process.exit(3); }
     console.log(s.ok ? `local records match the anchor through seq ${s.okThrough} (${claims.length} anchored heads checked); ${s.reason}` : `MISMATCH: ${s.reason}`);
     process.exit(s.ok ? 0 : 1);
   }

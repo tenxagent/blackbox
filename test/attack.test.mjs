@@ -40,7 +40,7 @@ export const tests = [
     },
   },
   {
-    name: 'escape attempts: every one of the 31 gets its expected verdict; the 6 not stopped (+ --no-gate) say where they show',
+    name: 'escape attempts: every one of the 32 gets its expected verdict; the 6 not stopped (+ --no-gate) say where they show',
     fn() {
       const rows = runEscapes();
       assert.equal(new Set(ESCAPES.map((e) => e.id)).size, ESCAPES.length);
@@ -48,7 +48,7 @@ export const tests = [
       const open = rows.filter((r) => r.action === 'gate_allow');
       assert.deepEqual(open.map((r) => r.id), [15, 25, 28, 29, 30, 31]);   // 16 and 27 refused since the gate reads the txs, 26 since it reads 1Click's record (2026-11-06)
       for (const r of open) assert.ok(r.stopped === false && r.shows.length > 20);
-      assert.equal(rows.filter((r) => r.action !== 'gate_allow').length, 25);
+      assert.equal(rows.filter((r) => r.action !== 'gate_allow').length, 26);   // 32 refused since screen 5 (an API-issued address is never re-cleared by history)
     },
   },
 ];

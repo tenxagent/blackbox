@@ -70,7 +70,8 @@ the log tamper-evident:
   `cycle.mjs` stops because SocialDB refuses an anchor for lack of storage, the operator's wrapper script (not in this
   repo) reruns the cycle once with this key, which attaches the storage deposit. The operator also used it to prepay
   storage: registry on 2026-11-05 (`registry-cli.mjs deposit`) and SocialDB on 2026-11-06 (`registry-cli.mjs social-deposit
-  --amount 0.1`, tx `BTAYEH52…`), enough for the anchors until after the 11-18 results. So it is not an offline key, and
+  --amount 0.1`, tx `BTAYEH52…`). Each gated send now adds an anchor, so storage is topped up as it runs low: `registry-cli read`
+  prints how many anchors the prepaid storage still covers and, at the last 3 days' rate, the date it runs out. So it is not an offline key, and
   whoever holds that server holds it. Check the keys yourself:
   `node src/fckey.mjs --list --account 00537bf24e164c18f3512de1040d34c88a11f37976a3ef6d4de673dc9cef6590`.
 
@@ -98,7 +99,7 @@ NEAR does four things here that the agent's own chain (Robinhood Chain, an EVM c
 | leave a decision out of the log | partly: wallet transactions are reconciled, but a decision with no transaction cannot be seen | `coverage.mjs` (Current numbers), Limits |
 | change records newer than the last anchor | not caught until the next anchor (about every 8 hours), except gate decisions: since 2026-11-06 each is anchored before its send is signed | Limits, `src/anchor-now.mjs` |
 | spend while the log is not being anchored | refused, for sends that go through the gate | `src/gate.mjs` rule 1 (step 11) |
-| sign a payment before its decision is on NEAR | refused, for sends that go through the gate: the decision is anchored on the registry and SocialDB first, and no anchor means no signature; checked afterwards from public data (`not_anchored_before_send`: a matching registry head older than the tx's block) | `src/anchor-now.mjs`, `node src/flows.mjs` |
+| a payment reaches the chain before its decision is on NEAR | refused, for sends that go through the gate: the decision is anchored on the registry and SocialDB first, and no anchor means no signature; checked afterwards from public data (which can show anchor-before-block, not anchor-before-signature) (`not_anchored_before_send`: a matching registry head older than the tx's block) | `src/anchor-now.mjs`, `node src/flows.mjs` |
 | spend more than the daily cap | refused, for sends that go through the gate | `src/gate.mjs` rule 2 (step 11) |
 | make the agent pay an address planted in a message (prompt injection) | refused as `gate_warn` until a human approves the address; the $30 cap alone would have let it through | `src/gate.mjs` rule 3 (steps 11–12, **Attack demo**) |
 | swap the code behind an allow-listed contract | `warn`, so refused: on every gated send the gate reads each allow-listed contract's code hash with `eth_getProof` (`readFacts()` in `src/gate.mjs`); an unread hash is a warn too | rule 3; not for upgradeable proxies (Limits) |
@@ -110,8 +111,9 @@ NEAR does four things here that the agent's own chain (Robinhood Chain, an EVM c
 The checks above find tampering after the fact. The gate uses the same log to refuse a send **before** it is signed.
 The agent's own code calls it right before a deliberate send, and it refuses if:
 
-1. **the newest head in the registry is older than 20 hours** (two missed 8-hourly cycles). If the log is not being
-   anchored, the agent does not spend. If NEAR cannot be read, it also refuses (fail closed);
+1. **the newest published head in the registry is older than 20 hours** (two missed 8-hourly cycles). Only heads whose
+   `records_url` is pinned to a commit count: a pre-send anchor (below) points at `main` and does not refresh this rule. If the
+   log is not being published and anchored, the agent does not spend. If NEAR cannot be read, it also refuses (fail closed);
 2. **this send plus every send the gate allowed in the last 24 hours would exceed $30.** It counts its own
    approvals (the `gate_allow` rows it writes, each with `pendingUsd`), because older money records do not carry
    one uniform USD amount. An approved send that then fails still counts;
@@ -124,7 +126,7 @@ The agent's own code calls it right before a deliberate send, and it refuses if:
      Robinhood Chain contracts from `api.relay.link/chains`, two Elysium routers), or an address from an API the policy
      trusts (the caller passes the provenance and it is recorded: NEAR Intents 1Click deposit addresses, new for every
      quote; since 2026-11-06 the gate reads 1Click's own record of the address before the send, `readApiFacts()`, and it
-     must be a fresh quote, `PENDING_DEPOSIT`, that pays and refunds the agent, whatever the caller says), or a human approval in the published policy file, or an address the gate approved a send to before on the
+     must be a fresh quote, `PENDING_DEPOSIT`, that pays and refunds the agent, whatever the caller says; an address cleared this way is never cleared again by history, escape #32), or a human approval in the published policy file, or an address the gate approved a send to before on the
      same chain (only gate rows written since 2026-11-06 carry per-chain counterparties, so this history starts then).
      All of these entries **forward** value (a router, a bridge, a deposit address), so the counterparty must also name
      the final recipient, and it must be one of the agent's own addresses (`self` in the policy).
@@ -159,7 +161,7 @@ a send. **Which sends call it:** the agent's swap tool (`relay-swap.mjs`), its c
 `sleeve/eleos.mjs`) and its NEAR funding (`near-fund.mjs`). Its mint and crank race tools do not: they are speed-critical. The rules are the pure
 function `evaluate()`, tested on hand-built inputs (`test/gate.test.mjs`); the agent imports this exact file.
 The first real gated send was a 1 USDG → ETH swap on 2026-11-05: `gate_allow` at 18:12:53Z (seq 3394), then the swap's
-two transactions as a `relay_swap` record (seq 3395, `t` 18:13:15Z; its note says "19:1x", which is Ljubljana time, not an
+two transactions as a `relay_swap` record (seq 3395, `t` 18:13:15Z; its note says "19:1x", which is CET (UTC+1), not an
 insertion: the row was appended in order); a 1 USDG NEAR funding followed (`gate_allow`, seq 3397). They were
 anchored with seq 3453. Before them the log held no gate records.
 
@@ -177,8 +179,10 @@ the registry must hold a head at a seq ≥ the decision's, equal to that seq's h
 contract's clock before the block that holds the transaction (`not_anchored_before_send`). A `--no-gate` bypass skips the
 pre-send anchor, so it is flagged this way too. Until the next cycle publishes the records, the page shows the pre-send head
 as **ahead** of the published records: amber, never green, because nothing past the published records can be checked yet.
-Once they are published, a head that does not match is red, and one still unpublished after 24 hours is red. Its
-`records_url` points at `main`, not at a commit, because those records are not published yet.
+Its `records_url` points at `main`, not at a commit, because those records are not published yet; one still unpublished after
+9 hours (one missed cycle) is red. A head pinned to a published commit that lies beyond the records you loaded means published
+records are missing (a dropped tail, or an out-of-date copy): amber for at most 1 hour (a Pages deploy can lag), then red. Once
+the records are there, a head that does not match is red at once.
 
 **The log shows whether the gate ran.** `node src/gate.mjs coverage` goes through the records: every money record of a
 gated tool (`relay_swap`, `giga_sell`, `near_fund_deposit`, `sleeve_buy`) written since the first gate record must have
@@ -234,8 +238,8 @@ The decisions are written the way the agent writes them, exported with the agent
 hash-chained, and turning the refusal into an approval breaks verification at that record. `test/attack.test.mjs`
 checks all of this.
 
-**32 escape attempts** (`node demo/attack/escapes.mjs`, same policy, history and pinned time; every verdict is checked by
-`test/attack.test.mjs`). 25 are refused. 7 are not stopped by the gate, and the table says where they show instead. Rows
+**33 escape attempts** (`node demo/attack/escapes.mjs`, same policy, history and pinned time; every verdict is checked by
+`test/attack.test.mjs`). 26 are refused. 7 are not stopped by the gate, and the table says where they show instead. Rows
 17–27 came from an independent review on 2026-11-06, which found requests the first 17 rows did not try; the gate was
 changed for 17–24 (per-chain prior sends, a required chain, the final recipient behind routers and 1Click, unread code
 hashes, published-policy-only approvals). The open rows are all the same kind: the gate believes what the agent's own
@@ -278,7 +282,8 @@ stopped.
 | 29 | does 27 with a token the gate does not price | **not stopped**: only USDG is priced, by the gate and by `src/flows.mjs`; the decision notes the unpriced amount |
 | 30 | shows the gate one transaction and signs another | **not stopped**: the gate judges what it is shown. **Detected after the fact**: the signed tx matches no digest in the decision (`tx_not_shown_to_gate`, within one cycle) |
 | 31 | shows the gate no transactions | **not stopped** by the gate (it judges the description, rows 1–27); the agent's wrapper refuses a live send without them, and `src/flows.mjs` flags any gated send after 2026-11-06 13:00Z whose decision lists none |
-| 32 | runs the money tool with `--no-gate` | **not checked** by design; the caller writes a `gate_bypass` row, which is anchored and public; since 2026-11-06 a bypass also skips the pre-send anchor, so the send is flagged within one cycle (`not_anchored_before_send`) |
+| 32 | reuses a 1Click deposit address the gate allowed before, leaving out the provenance and naming an attacker as recipient | **refused** (added after the review of 2026-11-06 evening): an address cleared only because a trusted API issued it never counts as a prior interaction |
+| 33 | runs the money tool with `--no-gate` | **not checked** by design; the caller writes a `gate_bypass` row, which is anchored and public; since 2026-11-06 a bypass also skips the pre-send anchor, so the send is flagged within one cycle (`not_anchored_before_send`) |
 
 The same request as #1 also went through the **live** agent's gate (`gate_warn`, seq 3463 in `data/records.jsonl`, category
 `gate`, written 2026-11-05 23:09:50Z; the 2026-11-06 06:31Z cycle committed it and anchored the head of seq 3563 on
@@ -298,20 +303,20 @@ and plain browser JavaScript. Run all commands from the repository root.
 | 1 | `node test/run.mjs` | One `PASS`/`FAIL`/`SKIP` line per test, ending in `<N−1> passed, 0 failed, 1 skipped` (current N under **Current numbers** below). The one `SKIP` is the "operator check", which needs the private ledger (expected for judges; on the operator's machine it passes too). The suite includes `test/contract-wasm.test.mjs`, which **executes the deployed registry wasm** in Node and replays the contract's Rust cases against it, so no Rust toolchain is needed to exercise the contract. The 7 network tests (NEAR testnet reads, Robinhood Chain receipts) print `SKIP` instead of `FAIL` when the network is unreachable; `node test/run.mjs --offline` skips them on purpose. |
 | 2 | `node src/chain.mjs verify` | `heads.txt: OK, all <N> heads match` and `checkpoints.json: OK through seq <N> (<C> claims)`, N = the number of records (current values below). Exit code 0. |
 | 3 | `node src/chain.mjs tamper --seq 500 --out /tmp/bb.jsonl` then `node src/chain.mjs verify --records /tmp/bb.jsonl` | One character of record 500 is changed. Verify prints `FIRST MISMATCH at seq 500: head differs; record content changed` and `chain OK up to seq 496; ... something in seq 497..504 changed`. Exit code 1. |
-| 4 | `node src/rh-proof.mjs --n 5 --seed 1` | 5 tx records sampled (the sample moves as records grow): each Robinhood Chain one is checked, e.g. `verified seq 928 0x3e3ce35c65ad… lp_mint block 101763557 2026-10-30T13:32:17.000Z lag 2s`, and a record on another chain prints `not_on_rh` with its chain (on 2026-11-06: 4 verified, 1 `not_on_rh`, seq 2155 on BNB Chain). `--all` checks every tx record (current counts below). |
+| 4 | `node src/rh-proof.mjs --n 5 --seed 1` | 5 tx records sampled (the sample moves as records grow): each Robinhood Chain one is checked, e.g. `verified seq 928 0x3e3ce35c65ad… lp_mint block 101763557 2026-10-30T13:32:17.000Z lag 2s`, and a record on another chain prints `not_on_rh` with its chain. `--all` checks every tx record (current counts below). |
 | 5 | `node src/anchor.mjs` | Dry run on NEAR testnet. It builds and signs a SocialDB `set` transaction with a throwaway key, prints the JSON args, the deposit and the tx hash, then `DRY RUN: nothing was sent`. |
 | 6 | `python3 -m http.server 8000 --bind 127.0.0.1`, then open `http://localhost:8000/web/` | The page recomputes the chain in the browser and shows `chain OK up to seq <N> of <N>` (section 1). With its default account it then reads NEAR: the SocialDB anchor (2) and the locked registry (3), both green (amber in the hours after a gated send, until the next cycle publishes the records its pre-send anchor covers). Section 4 reconciles the wallet's transactions with the records from `data/coverage.json` plus the live nonce; it stays neutral, not green, while any transaction is unaccounted for. Section 5 shows where the money of each gated send went, from `data/flows.json`: one line per value that left the wallet, with its destination and, for a NEAR deposit, what 1Click's record says; green only with no finding. Section 6 lists the last 50 decisions in plain words, with explorer links for transactions. |
 | 7 | `node src/chain.mjs tamper --seq 500 --out web/tampered.jsonl`, then open `http://localhost:8000/web/?records=tampered.jsonl` | The page turns red: `chain OK up to seq 496 (tampered.jsonl); first mismatch in seq 497..504`. You can also load any edited copy with the file picker. |
-| 8 | `node src/anchor.mjs --read --network mainnet --account 00537bf24e164c18f3512de1040d34c88a11f37976a3ef6d4de673dc9cef6590` | Reads the agent's anchor from `social.near` and checks it against the local records: `anchored on mainnet (social.near) by 00537bf2…6590: seq <anchored seq> head <8 hex>…<4 hex> …` then `local records match the anchor through seq <anchored seq>; all claims match`. Right after a gated send, until the next cycle publishes its records, it prints `AHEAD: local records match every anchored head through seq <n>; head(s) at seq <m> are beyond these records …` (exit 3) instead: the decision was anchored before the send. |
+| 8 | `node src/anchor.mjs --read --network mainnet --account 00537bf24e164c18f3512de1040d34c88a11f37976a3ef6d4de673dc9cef6590` | Reads the agent's anchor from `social.near` and checks it against the local records: `anchored on mainnet (social.near) by 00537bf2…6590: seq <anchored seq> head <8 hex>…<4 hex> …` then `local records match the anchor through seq <anchored seq>; all claims match`. If a head lies beyond your copy of the records (a gated send's pre-send anchor, until the next cycle publishes its records; or a copy that is missing published records), it prints `AHEAD: local records match every anchored head through seq <n>; head(s) at seq <m> are beyond these records … and are NOT checked` with the latest head's `records_url` (exit 3) instead. |
 | 9 | Open `http://localhost:8000/web/?network=mainnet&account=00537bf24e164c18f3512de1040d34c88a11f37976a3ef6d4de673dc9cef6590` | The same check in the browser: the page reads `<account>/blackbox` from SocialDB through NEAR RPC and reports whether the loaded records match the anchored head. |
-| 10 | `node src/registry-cli.mjs read --account 00537bf24e164c18f3512de1040d34c88a11f37976a3ef6d4de673dc9cef6590` | Reads the append-only registry on mainnet: `code hash HHWM5HdM… (= contract/res wasm), access keys 0 (locked)`, the agent's anchors, then `local check … ALL MATCH` against `data/heads.txt`. Exit code 0. Unlike step 8 (SocialDB, which its owner can overwrite), nobody can change these anchors. |
+| 10 | `node src/registry-cli.mjs read --account 00537bf24e164c18f3512de1040d34c88a11f37976a3ef6d4de673dc9cef6590` | Reads the append-only registry on mainnet: `code hash HHWM5HdM… (= contract/res wasm), access keys 0 (locked)`, the agent's anchors, then `local check … ALL MATCH` against `data/heads.txt`. Exit code 0. If some heads lie beyond your copy of the records it adds an `AHEAD` line saying which, and whether they point at a published commit, and exits 3. It also prints how many more anchors the prepaid storage covers and when that runs out at the recent rate. Unlike step 8 (SocialDB, which its owner can overwrite), nobody can change these anchors. |
 | 11 | `node src/gate.mjs check --pending-usd 3 --to 0x5567954cd026cebfe486062cb75848e0f1c12e58 --chain robinhood --recipient 0x00731cd9e0BC7CAD1b54f85187B09B942cD3be04 --account 00537bf24e164c18f3512de1040d34c88a11f37976a3ef6d4de673dc9cef6590`, then the same without `--recipient`, then with `--to 0x000000000000000000000000000000000000dEaD`, then with `--anchor-time 2026-11-01T00:00:00Z` instead of `--account`; then `node src/flows.mjs` | The pre-sign gate. It reads the newest registry anchor on NEAR mainnet and the code hash of each counterparty with `eth_getProof` on Robinhood Chain. The first prints `{"allow":true,"action":"gate_allow",…,"why":"allow-listed: Relay approvalProxy (v3.2) on Robinhood Chain"…}` (exit 0) while the agent is anchoring. Without `--recipient` it prints `"action":"gate_warn"` with `… forwards the value, and no final recipient was given`; with the burn address, `unknown counterparty: … fresh address (0 txs, no code) ⇒ ask a human` (both exit 1). With the old anchor time: `newest anchor is <N> h old (> 20 h): the log is not being anchored` (exit 1). `--pending-usd 40` is refused by the $30 cap; no `--to` at all is refused; `--require-published` also compares your `gate.policy.json` with the published one. Last, `node src/gate.mjs coverage` prints `{"sends":<n>,"covered":<n>,"bypassed":0,"missing":[]}` (exit 0): every gated send in the records had a gate decision. `node src/flows.mjs` reads those sends back from Robinhood Chain and 1Click and lists each value that left the wallet with where it went (`ok  approval $1 to 0x5567… (Relay approvalProxy …)`, `ok  transfer $1 to 0x767c… (1Click deposit address …) · 1Click: SUCCESS, pays 00537bf2…`), ending `every first hop went to the agent or a listed contract` (exit 0); `--history` does the same for all sends of the gated tools, also before the gate. |
-| 12 | `node demo/attack/run.mjs`, then `node demo/attack/escapes.mjs` | The attack demo (section above): `GATE_WARN` for the injected payee although rules 1 and 2 pass, `GATE_REFUSE` with the demo blocklist, `GATE_ALLOW` for the Relay control, `verify: OK`, then `FAILS at seq 1` after the refusal is edited into an approval. The second prints the 32 escape attempts and ends `25 of 32 attempts refused by the gate; 7 not stopped by it`. No network. |
+| 12 | `node demo/attack/run.mjs`, then `node demo/attack/escapes.mjs` | The attack demo (section above): `GATE_WARN` for the injected payee although rules 1 and 2 pass, `GATE_REFUSE` with the demo blocklist, `GATE_ALLOW` for the Relay control, `verify: OK`, then `FAILS at seq 1` after the refusal is edited into an approval. The second prints the 33 escape attempts and ends `26 of 33 attempts refused by the gate; 7 not stopped by it`. No network. |
 
 <!-- numbers:start (generated by src/readme-numbers.mjs from the committed data; do not edit by hand) -->
 **Current numbers** (data through 2026-11-06T15:03:19.786Z, record 3699):
 
-- Step 1: 148 tests. A judge sees `147 passed, 0 failed, 1 skipped`: the one SKIP is the operator check that needs the private ledger.
+- Step 1: 150 tests. A judge sees `149 passed, 0 failed, 1 skipped`: the one SKIP is the operator check that needs the private ledger.
 - Step 2: `heads.txt: OK, all 3699 heads match` and `checkpoints.json: OK through seq 3699 (280 claims)`.
 - Steps 6 and 8: `chain OK up to seq 3699 of 3699`; the newest head in `data/checkpoints.json` is seq 3699, `1cfbf4d3…acc3` (each cycle anchors it on NEAR right after the data commit; this line is read from the local file, so step 8 and step 10 are what show NEAR holds the same head).
 - Step 4: `--all` checks 139 tx records: verified: 131 · not_on_rh: 8.
@@ -505,7 +510,7 @@ shows `chain OK up to seq 12 of 12` (the empty `account` skips the NEAR check; t
 | `src/rh-proof.mjs` | Robinhood Chain receipt check for every record with a tx hash. |
 | `src/gate.mjs` | The pre-sign gate: refuses a send if the newest registry anchor is older than 20 h, if the 24 h total of allowed sends would pass $30, or if an address the value reaches is blocklisted or not cleared (warn). `evaluate()` is pure and unit-tested; `check` is the CLI. |
 | `gate.policy.json` | The gate's policy: limits, allow-listed contracts (source + code hash), trusted APIs, human approvals, blocklist. |
-| `demo/attack/` | The attack demo: `message.txt` (phishing), `run.mjs` (fooled agent ⇒ gate ⇒ hash-chained log), `escapes.mjs` (32 escape attempts and their verdicts), `blocklist.json` (format of a blocklist entry). |
+| `demo/attack/` | The attack demo: `message.txt` (phishing), `run.mjs` (fooled agent ⇒ gate ⇒ hash-chained log), `escapes.mjs` (33 escape attempts and their verdicts), `blocklist.json` (format of a blocklist entry). |
 | `src/registry-cli.mjs` | Reads the append-only registry (code hash, locked keys, every anchor) and checks it against local heads; writes `anchor` / `register` / `deposit` (dry unless `--send`); `read` also prints how many more anchors the prepaid storage covers. The operator's anchoring job runs this. |
 | `src/flows.mjs` | Where the money of each gated send went: reads its transactions back from the chain (first hop) and 1Click's record of a deposit address, and checks them against the policy and the gate decision; writes `data/flows.json`. Since `ANCHOR_BEFORE_SEND_SINCE` it also checks that a registry head covering the decision predates the send's block. |
 | `src/coverage.mjs` | Reconciles the wallet's on-chain nonce with the records (own tx hashes + mint/crank batches); writes `data/coverage.json`. |

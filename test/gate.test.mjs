@@ -1,6 +1,6 @@
 // src/gate.mjs evaluate(): the pre-sign gate's three rules on hand-built inputs (no network).
 import { assert } from './lib.mjs';
-import { evaluate, spentLast24h, priorApproved, readPolicy, gateCoverage, judgeCounterparty, decodeTxs, txDigest } from '../src/gate.mjs';
+import { evaluate, spentLast24h, priorApproved, readPolicy, gateCoverage, judgeCounterparty, decodeTxs, txDigest, newestPublished, isPinned } from '../src/gate.mjs';
 import { readFileSync } from 'node:fs';
 
 // rule 3 fixtures: made-up addresses (0x1…, 0x2…), a code hash, and one blocklisted 0xbad… address
@@ -191,5 +191,32 @@ export const tests = [
       assert.equal(go(rec({ recipient: 'attacker.near' })).allow, false);
       // an API entry without a status URL keeps the old rule (the caller's recipient)
       assert.equal(evaluate({ rows: [], anchor: fresh, pendingUsd: 1, nowMs: NOW, policy: P, to: c, facts: {} }).allow, true);
+    } },
+  { name: 'rule 1 (screen 5 Z-1): only anchors pinned to a published commit count; a pre-send anchor (records_url = main) does not refresh it',
+    fn() {
+      const at = (iso) => BigInt(Date.parse(iso)) * 1_000_000n;
+      const pinned = { seq: 3686, recordsUrl: 'https://raw.githubusercontent.com/tenxagent/blackbox/761f0b3d29953a5bd23bdbb084497992d3d54d87/data/records.jsonl', timestampNs: at('2026-11-06T14:34:00Z') };
+      const preSend = { seq: 3697, recordsUrl: 'https://raw.githubusercontent.com/tenxagent/blackbox/main/data/records.jsonl', timestampNs: at('2026-11-07T14:00:00Z') };
+      assert.equal(isPinned(pinned.recordsUrl), true); assert.equal(isPinned(preSend.recordsUrl), false); assert.equal(isPinned(undefined), false);
+      const r = newestPublished([pinned, preSend]);
+      assert.deepEqual(r, { timeMs: Date.parse('2026-11-06T14:34:00Z'), seq: 3686 });
+      // a day of pre-send anchors with no published cycle: rule 1 sees the 14:34 anchor (> 20 h) and refuses
+      const e = evaluate({ rows: [], anchor: r, pendingUsd: 1, nowMs: Date.parse('2026-11-07T14:00:05Z'), policy: P, to: [{ address: RELAY, chain: 'robinhood', role: 'spender' }], facts: { [`robinhood:${RELAY}`]: { codeHash: HASH } } });
+      assert.equal(e.allow, false); assert.match(e.reasons.join(' '), /newest published anchor is 23\.\d h old/);
+      assert.match(newestPublished([preSend]).error, /no anchor pinned/);
+    } },
+  { name: 'rule 3 (screen 5 Z-3): an address allowed only because a trusted API issued it is never re-cleared by "prior interaction"',
+    fn() {
+      const DEP = '0x' + '9'.repeat(40);
+      const earlier = { row: { t: new Date(NOW - 3.6e6).toISOString(), engine: 'gate', action: 'gate_allow', counterparties: [
+        { address: DEP, chain: 'robinhood', verdict: 'allow', via: 'api', why: 'from a trusted API: 1Click; its own record …', provenance: { api: '1click.chaindefuser.com' } },
+        { address: RELAY, chain: 'robinhood', verdict: 'allow', via: 'allowlist', why: 'allow-listed: Relay proxy' }] } };
+      const legacy = { row: { ...earlier.row, counterparties: [{ address: DEP, chain: 'robinhood', why: 'from a trusted API: 1Click' }] } };   // rows before `via` existed
+      assert.equal(priorApproved([earlier], NOW).has(`robinhood:${DEP}`), false);
+      assert.equal(priorApproved([legacy], NOW).has(`robinhood:${DEP}`), false);
+      assert.equal(priorApproved([earlier], NOW).get(`robinhood:${RELAY}`), 1);
+      const again = judgeCounterparty({ address: DEP, chain: 'robinhood', role: 'deposit address', recipient: '0x' + 'dead'.padStart(40, '0') }, P, priorApproved([earlier], NOW));
+      assert.equal(again.verdict, 'warn');
+      assert.equal(judgeCounterparty({ address: HUMAN, chain: 'robinhood' }, P, new Map()).via, 'human');
     } },
 ];
