@@ -5,7 +5,7 @@
  "explorerTx": "https://robinhoodchain.blockscout.com/tx/",
  "counts": {
   "verified": 131,
-  "not_on_rh": 8
+  "not_on_rh": 9
  },
  "results": [
   {
@@ -1774,6 +1774,14 @@
    "blockTime": "2026-11-06T15:03:18.000Z",
    "lagSec": 2,
    "to": "0x5567954cd026cebfe486062cb75848e0f1c12e58"
+  },
+  {
+   "seq": 3721,
+   "tx": "0x8e4ed489a8b63d48560c1f83d51611720521d4a0ca1c5efbf29937fbd43f6df9",
+   "chain": "elysium",
+   "what": "sleeve_sell",
+   "result": "not_on_rh",
+   "note": "record says chain \"elysium\""
   }
  ]
 }
