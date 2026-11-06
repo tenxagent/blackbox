@@ -137,7 +137,11 @@ description). The agent's wrappers also pass the exact unsigned transactions the
 decodes them itself (`decodeTxs()`): an ERC-20 `transfer` or `approve` names its payee or spender in the calldata, any other
 call or native value reaches `tx.to`. Every address found there must be one the caller declared, or the send is refused; an
 unlimited approval is refused; and the USDG the transactions move or approve may not exceed the USD the caller declared
-(2 % + 1 cent). Only USDG is priced: for native coin and other tokens the caller's figure stands, and the decision says so.
+(2 % + 1 cent). It counts only what the shown transactions transfer or approve: a swap that relies on an allowance
+given earlier shows $0 here, and the router's pull is caught only afterwards (`amount_over_gate` in `src/flows.mjs`). The
+agent's swap tool accepts only approvals of at most the swap amount, which the swap then uses up, so each of its swaps
+shows its own approval. Only USDG is priced: for native coin and other tokens the caller's figure stands, and the decision
+says so.
 What a router does inside its own calldata (a Relay swap's final recipient) is not decoded, so those entries still need the
 caller's recipient. The decision records a digest of each transaction it was shown (`shownTxs`, sha256 of
 chain|to|data|value), and `src/flows.mjs` checks afterwards that the transaction on chain is one of them (below). Without
