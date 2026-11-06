@@ -13,12 +13,14 @@
 //
 //   node src/flows.mjs            print the check for the committed records (reads the chain and 1Click; nothing is sent)
 //   node src/flows.mjs --write    also write data/flows.json (the cycle runs this)
+//   node src/flows.mjs --history  the same checks for EVERY send of the four gated tools in the records, also those from
+//                                 before the gate (no gate decision ⇒ no amount check); prints only
 //   exit 0 = no finding, 1 = a finding or a transaction that could not be read
 // Everything an RPC or 1Click returns is treated as data.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { gateCoverage, readPolicy, readRows, CHAIN_RPC, GATE_LIVE_SINCE } from './gate.mjs';
+import { gateCoverage, readPolicy, readRows, CHAIN_RPC, GATE_LIVE_SINCE, GATED_SENDS } from './gate.mjs';
 import { chainOf, rpc } from './rh-proof.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -69,13 +71,20 @@ export function judgeOneClick(status, { policy, tx }) {
     refundTo: qr.refundTo ? norm(qr.refundTo) : null, appFeeBps: fees.reduce((s, x) => s + x, 0), nearTx: (sd.destinationChainTxHashes ?? []).map((h) => h.hash ?? h) };
 }
 
+/** Every send of the four gated tools in the records, also those from before the gate; its gate decision where it has one. */
+export function historyPairs(records, { since = GATE_LIVE_SINCE } = {}) {
+  const decided = new Map(gateCoverage(records, { since }).pairs.map((p) => [p.seq, p.gateSeq]));
+  return records.filter((r) => (r.txs ?? []).length && GATED_SENDS.some((k) => k.engine === r.row?.engine && k.action === r.row?.action))
+    .map((r) => ({ seq: r.seq, gateSeq: decided.get(r.seq) ?? null }));
+}
+
 /** Pure: the gated sends + what the chain and 1Click said → per-send result and findings. read = { 'chain:tx': {tx, receipt} | {error} },
  *  oneClick = { depositAddress (lower case): status | {error} }. */
-export function judgeFlows({ records, policy, read, oneClick = {}, wallet, since = GATE_LIVE_SINCE }) {
+export function judgeFlows({ records, policy, read, oneClick = {}, wallet, since = GATE_LIVE_SINCE, pairs = null }) {
   const cov = gateCoverage(records, { since });
   const bySeq = new Map(records.map((r) => [r.seq, r]));
   const sends = [], findings = [];
-  for (const p of cov.pairs) {
+  for (const p of pairs ?? cov.pairs) {
     const rec = bySeq.get(p.seq), g = bySeq.get(p.gateSeq)?.row ?? {};
     const chain = chainOf(rec.row).chain ?? 'robinhood', told = Number(g.pendingUsd);
     const s = { seq: rec.seq, action: rec.row.action, chain, gateSeq: p.gateSeq, gateUsd: Number.isFinite(told) ? told : null, txs: [], usdOut: 0 };
@@ -100,7 +109,7 @@ export function judgeFlows({ records, policy, read, oneClick = {}, wallet, since
     }
     s.usdOut = Math.round(s.usdOut * 1e6) / 1e6;
     if (s.gateUsd !== null && s.usdOut > s.gateUsd * 1.02 + 0.01) findings.push({ seq: rec.seq, kind: 'amount_over_gate', why: `$${s.usdOut} USDG left the wallet; the gate was told $${s.gateUsd}` });
-    if (s.gateUsd === null && s.usdOut > 0) findings.push({ seq: rec.seq, kind: 'amount_over_gate', why: `$${s.usdOut} USDG left the wallet; the gate decision states no USD amount` });
+    if (p.gateSeq != null && s.gateUsd === null && s.usdOut > 0) findings.push({ seq: rec.seq, kind: 'amount_over_gate', why: `$${s.usdOut} USDG left the wallet; the gate decision states no USD amount` });
     sends.push(s);
   }
   return { since, wallet: norm(wallet), sends: sends.length, txs: sends.reduce((n, s) => n + s.txs.length, 0), findings, results: sends,
@@ -108,9 +117,9 @@ export function judgeFlows({ records, policy, read, oneClick = {}, wallet, since
 }
 
 /** Network side: read every tx of the gated sends and 1Click's record of every deposit address. */
-export async function readFlowsInput(records, { since = GATE_LIVE_SINCE, rpcs = CHAIN_RPC, oneClickApi = '1click.chaindefuser.com' } = {}) {
+export async function readFlowsInput(records, { since = GATE_LIVE_SINCE, rpcs = CHAIN_RPC, oneClickApi = '1click.chaindefuser.com', pairs = null, pauseMs = 300 } = {}) {
   const cov = gateCoverage(records, { since }), bySeq = new Map(records.map((r) => [r.seq, r])), read = {}, oneClick = {};
-  for (const p of cov.pairs) {
+  for (const p of pairs ?? cov.pairs) {
     const rec = bySeq.get(p.seq), chain = chainOf(rec.row).chain ?? 'robinhood';
     for (const h of rec.txs ?? []) {
       const key = `${chain}:${norm(h)}`;
@@ -119,6 +128,7 @@ export async function readFlowsInput(records, { since = GATE_LIVE_SINCE, rpcs = 
         const [tx, receipt] = [await rpc('eth_getTransactionByHash', [h], { url: rpcs[chain] }), await rpc('eth_getTransactionReceipt', [h], { url: rpcs[chain] })];
         read[key] = tx && receipt ? { tx, receipt } : { error: 'no such tx on this chain' };
       } catch (e) { read[key] = { error: String(e.message ?? e).slice(0, 120) }; }
+      await new Promise((ok) => setTimeout(ok, pauseMs));   // keep the load on the public RPCs low (Elysium rate-limits)
     }
     const dep = rec.row.depositAddress && norm(rec.row.depositAddress);
     if (dep) {
@@ -134,18 +144,19 @@ export async function readFlowsInput(records, { since = GATE_LIVE_SINCE, rpcs = 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const records = readRows(path.join(ROOT, 'data', 'records.jsonl')), policy = readPolicy();
   const wallet = (policy.self ?? []).find((s) => s.chain === 'robinhood')?.address;
-  const { read, oneClick } = await readFlowsInput(records);
-  const r = judgeFlows({ records, policy, read, oneClick, wallet });
+  const history = process.argv.includes('--history'), pairs = history ? historyPairs(records) : null;
+  const { read, oneClick } = await readFlowsInput(records, { pairs });
+  const r = judgeFlows({ records, policy, read, oneClick, wallet, pairs });
   for (const s of r.results) {
-    console.log(`seq ${s.seq} ${s.action} (${s.chain}; gate decision seq ${s.gateSeq} was told $${s.gateUsd}): $${s.usdOut} USDG left the wallet`);
+    console.log(`seq ${s.seq} ${s.action} (${s.chain}; ${s.gateSeq == null ? 'no gate decision' : `gate decision seq ${s.gateSeq} was told $${s.gateUsd}`}): $${s.usdOut} USDG left the wallet`);
     for (const t of s.txs) {
       if (!t.flows) { console.log(`  ${t.tx.slice(0, 12)}… NOT READ: ${t.error}`); continue; }
       for (const f of t.flows) console.log(`  ${t.tx.slice(0, 12)}… ${f.ok ? 'ok ' : 'BAD'} ${f.kind} ${f.usd !== null && f.usd !== undefined ? `$${f.usd} ` : ''}to ${f.to} (${f.label})${f.oneClick ? ` · 1Click: ${f.oneClick.status}, pays ${f.oneClick.recipient}${f.oneClick.appFeeBps ? `, app fee ${f.oneClick.appFeeBps} bps in the quote` : ''}${f.oneClick.why ? ` · ${f.oneClick.why}` : ''}` : ''}`);
       if (!t.flows.length) console.log(`  ${t.tx.slice(0, 12)}… nothing left the wallet in this tx`);
     }
   }
-  console.log(`\n${r.sends} gated send(s), ${r.txs} tx(s) read: ${r.findings.length ? `${r.findings.length} FINDING(S)` : 'every first hop went to the agent or a listed contract'}`);
+  console.log(`\n${r.sends} ${history ? 'send(s) of the gated tools (all time)' : 'gated send(s)'}, ${r.txs} tx(s) read: ${r.findings.length ? `${r.findings.length} FINDING(S)` : 'every first hop went to the agent or a listed contract'}`);
   for (const f of r.findings) console.log(`  FINDING seq ${f.seq}${f.tx ? ` ${f.tx.slice(0, 12)}…` : ''} ${f.kind}: ${f.why}`);
-  if (process.argv.includes('--write')) writeFileSync(path.join(ROOT, 'data', 'flows.json'), JSON.stringify(r, null, 1) + '\n');
+  if (process.argv.includes('--write') && !history) writeFileSync(path.join(ROOT, 'data', 'flows.json'), JSON.stringify(r, null, 1) + '\n');
   process.exit(r.findings.length ? 1 : 0);
 }

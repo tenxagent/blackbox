@@ -1,7 +1,7 @@
 // src/flows.mjs: where the money of each gated send went (first hop), checked against the policy, the gate decision and 1Click.
 // Offline: the receipts below are the real ones of seq 3395 (relay_swap) and 3399 (near_fund_deposit), cut to the fields used.
 import { assert } from './lib.mjs';
-import { judgeFlows, outflows, judgeOneClick } from '../src/flows.mjs';
+import { judgeFlows, outflows, judgeOneClick, historyPairs } from '../src/flows.mjs';
 import { readPolicy } from '../src/gate.mjs';
 
 const W = '0x00731cd9e0bc7cad1b54f85187b09b942cd3be04', USDG = '0x5fc5360d0400a0fd4f2af552add042d716f1d168';
@@ -83,6 +83,20 @@ export const tests = [
       assert.deepEqual(kinds(run({ policy: moved })), ['unlisted_destination']);
       const read = { ...REAL }; delete read[`robinhood:${H3}`];
       assert.deepEqual(kinds(run({ read })), ['not_read']);
+    } },
+  { name: '--history: every send of the gated tools, also before the gate; its gate decision where it has one, else no amount check',
+    fn() {
+      const SB = '0x50025f4847000000000000000000000000000000000000000000000000000001', ELYSPUMP = '0x751cefb96ac88db5327d39e0fbdd5d882d80b430';
+      const old = { seq: 2701, row: { t: '2026-11-03T19:38:33.569Z', engine: 'sleeve', action: 'sleeve_buy', type: 'live' }, txs: [SB] };
+      const fund = { seq: 2696, row: { t: '2026-11-03T19:30:00Z', engine: 'sleeve', action: 'sleeve_fund_relay_deposit', type: 'live' }, txs: ['0x' + '22'.repeat(32)] };
+      const records = [fund, old, ...RECORDS], pairs = historyPairs(records);
+      assert.deepEqual(pairs, [{ seq: 2701, gateSeq: null }, { seq: 3395, gateSeq: 3394 }, { seq: 3399, gateSeq: 3397 }]);   // not the ungated funding hop
+      const read = { ...REAL, [`elysium:${SB}`]: { tx: { from: W, to: ELYSPUMP, value: '0x' + (35178240000000000n).toString(16) }, receipt: { status: '0x1', logs: [] } } };
+      const r = judgeFlows({ records, policy, read, oneClick: ONECLICK, wallet: W, pairs });
+      assert.deepEqual([r.sends, r.findings.length], [3, 0], JSON.stringify(r.findings));
+      assert.equal(r.results[0].txs[0].flows[0].label, 'ElysPump v2 router on Elysium');
+      const bad = { ...read, [`elysium:${SB}`]: { tx: { from: W, to: ATTACKER, value: '0x1' }, receipt: { status: '0x1', logs: [] } } };
+      assert.deepEqual(kinds(judgeFlows({ records, policy, read: bad, oneClick: ONECLICK, wallet: W, pairs })), ['unlisted_destination']);
     } },
   { name: 'outflows: native value counts, value coming IN does not',
     fn() {

@@ -46,7 +46,7 @@
    "chain": "elysium",
    "address": "0x751cefb96ac88db5327d39e0fbdd5d882d80b430",
    "label": "ElysPump v2 router on Elysium",
-   "source": "elysp.com's own web page (router used by its buy button); used by sleeve_buy (seq 2701, 2714)",
+   "source": "elysp.com's own web page (router used by its buy button); used by sleeve_buy (seq 2701)",
    "codeHash": "0x6bbdf8bdcb1336bc11b6014cf9632ad922e7466a4902abded04dd24d9de06999",
    "added": "2026-11-05T23:10Z",
    "forwards": true
@@ -55,7 +55,7 @@
    "chain": "elysium",
    "address": "0x787344f1ac74d78772b5d9314551b3b727ee914b",
    "label": "Eleos v4 router on Elysium",
-   "source": "eleos.fun's frontend bundle, confirmed by the function selectors in the router bytecode; used by sleeve_buy (seq 2954)",
+   "source": "eleos.fun's frontend bundle, confirmed by the function selectors in the router bytecode; used by sleeve_buy (seq 2714, 2954)",
    "codeHash": "0xc9e19c2841d5b0ef842e58c820dc4c33df5e1fb28359c8026c5def91ee1bb70c",
    "added": "2026-11-05T23:10Z",
    "forwards": true
