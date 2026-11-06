@@ -74,7 +74,8 @@ export function flowsSummary(fl) {
   }
   if (!fl.sends) return { state: 'idle', text: text + 'Nothing to check yet.', sends };
   return { state: 'ok', sends, text: text + 'Every value that left the wallet went to the agent itself, an allow-listed contract on the same chain, or a 1Click deposit address '
-    + 'whose 1Click record pays the agent, and the USDG out stayed within 2 % + 1 cent of the USD the gate was told. First hop only (the public RPC has no traces), and after the fact: it detects, it does not prevent.' };
+    + 'whose 1Click record pays the agent, and the USDG out stayed within 2 % + 1 cent of the USD the gate was told. First hop only (the public RPC has no traces), and after the fact: this check detects, it does not prevent. '
+    + 'What happens before the send is the gate, and since 2026-11-06 15:00Z the decision\'s anchor on NEAR, marked per transaction below.' };
 }
 export const NEAR = {
   testnet: { rpc: 'https://test.rpc.fastnear.com', socialDb: 'v1.social08.testnet', explorer: 'https://testnet.nearblocks.io/address/' },
