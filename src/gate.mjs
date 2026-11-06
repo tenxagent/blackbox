@@ -24,14 +24,16 @@
 //   node src/gate.mjs check --pending-usd 3 --to 0xADDR[,0xADDR] --chain robinhood [--recipient ADDR] [--policy gate.policy.json]
 //        [--no-code-check] [--require-published]
 //        [--rows data/records.jsonl] [--account ID] [--network mainnet] [--max-anchor-age-h 20] [--max-daily-usd 30]
-//        [--fail-open] [--anchor-time ISO] [--now ISO]
+//        [--fail-open] [--anchor-time ISO] [--now ISO] [--txs FILE]   (FILE: JSON [{chain, to, data, value}], the unsigned txs)
 //   ⇒ one JSON line {allow, action, reasons, counterparties, anchorAgeH, spent24h, pendingUsd}; exit 0 = allow, 1 = refuse, 2 = usage.
 //   node src/gate.mjs coverage [--rows data/records.jsonl]
 //   ⇒ {sends, covered, bypassed, missing}: did every gated send since the gate went live have a gate decision? exit 1 if not.
 // --rows takes a JSONL file of records ({row: {...}}) or of raw ledger rows; --anchor-time skips the NEAR read (tests, demos).
 // Limits: this is a policy the agent's own code calls. A compromised key, or an operator who edits the calling code, bypasses
 // it; so does anyone who can push gate.policy.json (the agent can too). The counterparties, recipient, provenance and USD
-// amount are what the caller says; the gate records them but cannot check them. A code hash catches a redeployed contract,
+// amount are what the caller says; with txs the gate checks them against the transactions' own ERC-20 transfers/approvals and
+// USDG amounts, but not a router's calldata or other tokens' prices, and only for the transactions it is shown (flows.mjs
+// checks afterwards that the signed tx was one of them). A code hash catches a redeployed contract,
 // not an upgradeable proxy whose implementation changes. It adds a NEAR RPC read to every gated send by design.
 
 import { createHash } from 'node:crypto';
@@ -314,7 +316,8 @@ async function main() {
   const to = (opt('to') ?? '').split(',').filter(Boolean).map((address) => ({ address, chain: opt('chain'), ...(opt('recipient') ? { recipient: opt('recipient') } : {}) }));
   const facts = has('no-code-check') ? {} : await readFacts(to);
   const published = has('require-published') ? await checkPublished(opt('policy') ? path.resolve(opt('policy')) : POLICY_FILE) : undefined;
-  const r = evaluate({ rows, anchor, policy, pendingUsd: Number(opt('pending-usd')), nowMs, failOpen: has('fail-open'), to, facts, published });
+  const txs = opt('txs') ? JSON.parse(readFileSync(path.resolve(opt('txs')), 'utf8')) : undefined;   // [{chain, to, data, value}] (2026-11-06)
+  const r = evaluate({ rows, anchor, policy, pendingUsd: Number(opt('pending-usd')), nowMs, failOpen: has('fail-open'), to, facts, published, txs });
   console.log(JSON.stringify({ ...r, anchorSeq: anchor.seq }));
   process.exit(r.allow ? 0 : 1);
 }
