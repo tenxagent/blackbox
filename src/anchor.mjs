@@ -38,7 +38,9 @@ import { generateKeyPair, keyPairFromString, base58Decode } from './near/keys.mj
 import { signTransaction, txContext, TGAS, formatNear } from './near/tx.mjs';
 import * as rpc from './near/rpc.mjs';
 
-export const GAS = 100n * TGAS;
+// 40 Tgas (was 100): a set() of this size burns ~13 Tgas (tx 5ARyAnVz…, 2026-11-06), and NEAR charges the whole prepaid gas up front at
+// its pessimistic gas price, so 100 Tgas was refused (NotEnoughBalance) with 0.0658 NEAR liquid on 2026-11-06 22:33Z.
+export const GAS = 40n * TGAS;
 const KEY_RE = /^[a-zA-Z0-9_.-]{1,256}$/;
 
 // anchors = { <seq>: <head> } written under blackbox/anchors/<seq>. SocialDB `set` merges keys, so earlier anchors stay readable

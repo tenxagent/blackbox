@@ -58,7 +58,7 @@ async function callOne(url, method, params, { timeoutMs = 20000 } = {}) {
   if (j.error && (j.error.code === -429 || /rate.?limit|too many/i.test(String(j.error.message)))) throw new Error(`HTTP 429 (rate limited) from ${url}`);
   if (j.error) {
     const cause = j.error.cause?.name ? `${j.error.cause.name}: ` : '';
-    throw new NearRpcError(`${cause}${JSON.stringify(j.error.data ?? j.error.message).slice(0, 300)}`);
+    throw new NearRpcError(`${cause}${JSON.stringify(j.error.data ?? j.error.message).slice(0, 600)}`);
   }
   // query errors come back as a result with an "error" string
   if (j.result && typeof j.result.error === 'string') throw new NearRpcError(j.result.error.slice(0, 300));

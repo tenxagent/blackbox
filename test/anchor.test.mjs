@@ -53,7 +53,7 @@ export const tests = [
       assert.equal(back.tx.receiverId, 'v1.social08.testnet');
       assert.equal(fc.methodName, 'set');
       assert.equal(fc.deposit, 20000000000000000000000n);
-      assert.equal(fc.gas, 100n * 10n ** 12n);
+      assert.equal(fc.gas, 40n * 10n ** 12n);   // src/anchor.mjs GAS (40 Tgas since 2026-11-06)
       assert.deepEqual(JSON.parse(Buffer.from(fc.args).toString()), { data });
       assert.equal(verifySignature(s.hash, back.signature, kp.publicKey), true);
     },
