@@ -216,7 +216,8 @@ export const PUBLISHED_POLICY_URL = 'https://raw.githubusercontent.com/tenxagent
 /** Compare the policy file on disk with the published one. → {ok: true} | {ok: false, why}. Fails closed when unreadable. */
 export async function checkPublished(file = POLICY_FILE, url = PUBLISHED_POLICY_URL) {
   try {
-    const res = await fetch(`${url}?t=${Date.now()}`, { signal: AbortSignal.timeout(15_000) });
+    // no cache-buster: raw.githubusercontent.com leaves the query string out of its cache key (tested 2026-11-06: a new ?t= was a HIT)
+    const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
     if (!res.ok) return { ok: false, why: `published policy not readable (HTTP ${res.status})` };
     const pub = await res.text(), disk = readFileSync(file, 'utf8');
     return pub === disk ? { ok: true } : { ok: false, why: 'the policy file on disk differs from the published one (publish it first; GitHub raw can lag ~5 min)' };
