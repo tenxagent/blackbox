@@ -1,7 +1,7 @@
 // The browser verifier's logic, run in Node (same module the page loads).
 import { assert, netOrSkip } from './lib.mjs';
 import { readFileSync } from 'node:fs';
-import { checkRecords, describe, readNearAnchor, coverageSummary, nearRpc } from '../web/verify.js';
+import { checkRecords, describe, readNearAnchor, coverageSummary, flowsSummary, nearRpc } from '../web/verify.js';
 import { canon } from '../src/canon.mjs';
 
 const text = readFileSync(new URL('../data/records.jsonl', import.meta.url), 'utf8');
@@ -29,6 +29,31 @@ export const tests = [
       assert.ok(coverageSummary(cov, cov.total + 3).text.includes('has sent 3 more since'));
       assert.ok(coverageSummary(cov, cov.total).text.includes(`Live nonce ${cov.total}: current.`));
       assert.ok(coverageSummary(cov, false).text.includes('could not be read'));
+    },
+  },
+  {
+    name: 'where-the-money-went panel: the committed data/flows.json; red on any finding, an unread tx or a send without a gate decision',
+    fn() {
+      const fl = JSON.parse(readFileSync(new URL('../data/flows.json', import.meta.url), 'utf8'));
+      const s = flowsSummary(fl), clean = fl.findings.length === 0 && fl.missingGate.length === 0;
+      assert.equal(s.state, clean ? 'ok' : 'bad');
+      assert.ok(s.text.startsWith(`${fl.sends} gated send`) && s.text.includes(`${fl.txs} transaction`) && s.text.includes('First hop only') === clean, s.text);
+      assert.equal(s.sends.length, fl.results.length);
+      if (clean) assert.ok(s.sends.every((x) => x.txs.every((t) => t.ok && t.text.startsWith('✓'))));
+      const near = fl.results.find((r) => r.action === 'near_fund_deposit');
+      if (near) assert.match(s.sends[fl.results.indexOf(near)].txs[0].text, /1Click SUCCESS: pays the agent's NEAR account, refunds to its wallet/);
+      // synthetic: an unlisted payee, an unread tx, a send with no gate decision, nothing at all
+      const r0 = fl.results[0], f0 = r0.txs[0].flows[0];
+      const bad = { ...fl, findings: [{ seq: r0.seq, tx: r0.txs[0].tx, kind: 'unlisted_destination', why: 'transfer to 0x…dead: not on the allow-list' }],
+        results: [{ ...r0, txs: [{ ...r0.txs[0], flows: [{ ...f0, ok: false, label: 'not on the allow-list' }] }] }] };
+      const b = flowsSummary(bad);
+      assert.equal(b.state, 'bad'); assert.ok(b.text.includes(`#${r0.seq} unlisted destination`) && !b.text.includes('First hop only'), b.text);
+      assert.ok(b.sends[0].txs[0].text.startsWith('✗') && !b.sends[0].txs[0].ok);
+      const unread = flowsSummary({ ...fl, findings: [{ seq: r0.seq, tx: r0.txs[0].tx, kind: 'not_read', why: 'HTTP 429' }], results: [{ ...r0, txs: [{ tx: r0.txs[0].tx, result: 'not_read', error: 'HTTP 429' }] }] });
+      assert.equal(unread.state, 'bad'); assert.equal(unread.sends[0].txs[0].text, '✗ not read: HTTP 429');
+      const nogate = flowsSummary({ ...fl, findings: [], missingGate: [3500] });
+      assert.equal(nogate.state, 'bad'); assert.ok(nogate.text.includes('No gate decision before #3500'));
+      assert.equal(flowsSummary({ since: fl.since, sends: 0, txs: 0, findings: [], missingGate: [], results: [] }).state, 'idle');
     },
   },
   {

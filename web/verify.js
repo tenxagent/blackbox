@@ -30,6 +30,38 @@ export function coverageSummary(cov, liveNonce = null) {
   else if (liveNonce === false) text += ' (The live nonce could not be read from this browser.)';
   return { state: cov.unexplained === 0 ? 'ok' : 'idle', text };
 }
+
+/** Where-the-money-went panel (pure; tested in test/web.test.mjs): data/flows.json as src/flows.mjs wrote it in the last cycle.
+ *  The page reports that committed result; it does not read receipts itself. Green only when sends were checked with no finding
+ *  (an unread tx is a finding) and every gated send had a gate decision. First hop only, and after the fact: it detects, it does not prevent. */
+export function flowsSummary(fl) {
+  const when = (s) => String(s ?? '').replace('T', ' ').slice(0, 16);
+  const n = (k, w) => `${k} ${w}${k === 1 ? '' : 's'}`;
+  const findings = fl.findings ?? [], missing = fl.missingGate ?? [];
+  const flowText = (f) => {
+    const what = f.kind === 'approval' ? `approval${f.usd != null ? ` of ${usd(f.usd)}` : ''}`
+      : f.kind === 'native' ? `${amt(Number(BigInt(f.amount)) / 1e18)} native coin` : f.usd != null ? `${usd(f.usd)} USDG` : `token ${short(f.token, 4)}`;
+    const oc = !f.oneClick ? '' : f.oneClick.ok
+      ? ` (1Click ${f.oneClick.status}: pays the agent's NEAR account, refunds to its wallet${f.oneClick.appFeeBps ? `, ${f.oneClick.appFeeBps} bps app fee in the quote` : ''})`
+      : ` (1Click: ${f.oneClick.why})`;
+    return `${f.ok ? '✓' : '✗'} ${what} to ${f.label} (${short(f.to, 4)})${oc}`;
+  };
+  const sends = (fl.results ?? []).map((s) => ({
+    seq: s.seq, t: s.t ?? null,
+    head: `${words(s.action)} on ${CHAINS[s.chain] ?? s.chain}: ${s.gateSeq == null ? 'no gate decision' : `the gate (#${s.gateSeq}) was told ${usd(s.gateUsd)}`}; ${usd(s.usdOut)} USDG left the wallet.`,
+    txs: (s.txs ?? []).map((t) => ({ tx: t.tx, chain: s.chain, ok: Array.isArray(t.flows) && t.flows.every((f) => f.ok),
+      text: !Array.isArray(t.flows) ? `✗ not read: ${t.error}` : !t.flows.length ? 'nothing left the wallet' : t.flows.map(flowText).join('; ') })),
+  }));
+  let text = `${n(fl.sends ?? 0, 'gated send')} since the gate went live (${when(fl.since)}Z), ${n(fl.txs ?? 0, 'transaction')} read back from the chain${fl.at ? ` when data/flows.json was written (${when(fl.at)}Z)` : ''}. `;
+  if (findings.length || missing.length) {
+    if (findings.length) text += `${n(findings.length, 'finding')}: ${findings.map((f) => `#${f.seq} ${words(f.kind)} (${f.why})`).join('; ')}. `;
+    if (missing.length) text += `No gate decision before #${missing.join(', #')}. `;
+    return { state: 'bad', text: text + 'Detected after the fact: the money has already moved.', sends };
+  }
+  if (!fl.sends) return { state: 'idle', text: text + 'Nothing to check yet.', sends };
+  return { state: 'ok', sends, text: text + 'Every value that left the wallet went to the agent itself, an allow-listed contract on the same chain, or a 1Click deposit address '
+    + 'whose 1Click record pays the agent, and the USDG out stayed within 2 % + 1 cent of the USD the gate was told. First hop only (the public RPC has no traces), and after the fact: it detects, it does not prevent.' };
+}
 export const NEAR = {
   testnet: { rpc: 'https://test.rpc.fastnear.com', socialDb: 'v1.social08.testnet', explorer: 'https://testnet.nearblocks.io/address/' },
   // 2026-11-06 (screen 4 Y-9): three public CORS-enabled RPCs, tried in order on a network error or a rate limit (429)
@@ -283,6 +315,19 @@ async function main() {
       if (typeof r.result === 'string') live = Number(BigInt(r.result));
     } catch { /* stays false */ }
     const s = coverageSummary(cov, live); setStatus('coverage-status', s.state, s.text);
+  })();
+  (async () => {   // where-the-money-went panel: the committed data/flows.json (optional; never blocks the chain check)
+    let fl; try { fl = await (await fetch('../data/flows.json', { cache: 'no-store' })).json(); } catch { setStatus('flows-status', 'idle', 'data/flows.json not found (run node src/flows.mjs --write).'); return; }
+    const s = flowsSummary(fl); setStatus('flows-status', s.state, s.text);
+    const list = document.getElementById('flows'); list.replaceChildren();
+    for (const x of s.sends) {
+      const body = el('div', { class: 'what' }, x.head);
+      for (const t of x.txs) {
+        body.append(el('br'), t.chain === 'robinhood' ? el('a', { class: 'tx', href: RH_EXPLORER_TX + t.tx, target: '_blank', rel: 'noopener noreferrer' }, `tx ${short(t.tx, 8)}`)
+          : el('span', { class: 'tx' }, `tx ${short(t.tx, 8)} on ${CHAINS[t.chain] ?? t.chain}`), ' ', el('span', { class: t.ok ? 'ok' : 'bad' }, t.text));
+      }
+      list.append(el('li', { class: 'cat-money' }, el('span', { class: 'seq' }, `#${x.seq}`), el('span', { class: 'when' }, String(x.t ?? '').replace('T', ' ').slice(0, 19)), el('span', { class: 'cat' }, 'money'), body));
+    }
   })();
   const proofByTx = new Map((proof?.results || []).map((p) => [p.tx, p]));
 

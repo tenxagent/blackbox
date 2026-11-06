@@ -87,7 +87,7 @@ export function judgeFlows({ records, policy, read, oneClick = {}, wallet, since
   for (const p of pairs ?? cov.pairs) {
     const rec = bySeq.get(p.seq), g = bySeq.get(p.gateSeq)?.row ?? {};
     const chain = chainOf(rec.row).chain ?? 'robinhood', told = Number(g.pendingUsd);
-    const s = { seq: rec.seq, action: rec.row.action, chain, gateSeq: p.gateSeq, gateUsd: Number.isFinite(told) ? told : null, txs: [], usdOut: 0 };
+    const s = { seq: rec.seq, t: rec.row.t ?? null, action: rec.row.action, chain, gateSeq: p.gateSeq, gateUsd: Number.isFinite(told) ? told : null, txs: [], usdOut: 0 };
     for (const h of rec.txs ?? []) {
       const r = read[`${chain}:${norm(h)}`];
       if (!r || r.error || !r.receipt) { s.txs.push({ tx: h, result: 'not_read', error: r?.error ?? 'not read' }); findings.push({ seq: rec.seq, tx: h, kind: 'not_read', why: `could not read the tx on ${chain}: ${r?.error ?? 'not read'}` }); continue; }
@@ -157,6 +157,6 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   }
   console.log(`\n${r.sends} ${history ? 'send(s) of the gated tools (all time)' : 'gated send(s)'}, ${r.txs} tx(s) read: ${r.findings.length ? `${r.findings.length} FINDING(S)` : 'every first hop went to the agent or a listed contract'}`);
   for (const f of r.findings) console.log(`  FINDING seq ${f.seq}${f.tx ? ` ${f.tx.slice(0, 12)}…` : ''} ${f.kind}: ${f.why}`);
-  if (process.argv.includes('--write') && !history) writeFileSync(path.join(ROOT, 'data', 'flows.json'), JSON.stringify(r, null, 1) + '\n');
+  if (process.argv.includes('--write') && !history) writeFileSync(path.join(ROOT, 'data', 'flows.json'), JSON.stringify({ at: new Date().toISOString(), ...r }, null, 1) + '\n');   // at: the page says when
   process.exit(r.findings.length ? 1 : 0);
 }

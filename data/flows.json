@@ -1,4 +1,5 @@
 {
+ "at": "2026-11-06T05:06:57.470Z",
  "since": "2026-11-05T18:12:53.902Z",
  "wallet": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
  "sends": 2,
@@ -7,6 +8,7 @@
  "results": [
   {
    "seq": 3395,
+   "t": "2026-11-05T18:13:15.293Z",
    "action": "relay_swap",
    "chain": "robinhood",
    "gateSeq": 3394,
@@ -47,6 +49,7 @@
   },
   {
    "seq": 3399,
+   "t": "2026-11-05T18:16:57.059Z",
    "action": "near_fund_deposit",
    "chain": "robinhood",
    "gateSeq": 3397,
