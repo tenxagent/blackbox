@@ -138,8 +138,16 @@ export function judgeCounterparty(c, policy, prior, facts = {}) {
   if (human) return { ...out, verdict: 'allow', via: 'human', why: `approved by a human: ${human.by}, ${human.at} (counts only from the published policy)` };
   const n = prior.get(key(c.chain, addr)) ?? 0;
   if (n > 0) return { ...out, verdict: 'allow', via: 'prior', why: `prior interaction: ${n} earlier approved send${n > 1 ? 's' : ''}` };
-  const fresh = facts.nonce === 0 && facts.codeHash === null ? '; fresh address (0 txs, no code)' : '';
-  return { ...out, verdict: 'warn', why: `unknown counterparty: not allow-listed, not from a trusted API, never approved${fresh} ⇒ ask a human` };
+  // 2026-11-07 (the track prompt's 'age and activity' signal): what the chain shows about an unknown payee goes into the reason.
+  // Account AGE is not readable from public data on Robinhood Chain (its public RPC keeps no historical state and there is no
+  // public explorer API), so the gate reports activity only: transactions sent (nonce), code or not, and the balance.
+  let seen = '';
+  if (Number.isInteger(facts.nonce)) {
+    seen = facts.nonce === 0 && facts.codeHash === null ? '; fresh address (0 txs, no code)'
+      : `; on chain: ${facts.nonce} tx${facts.nonce === 1 ? '' : 's'} sent, ${facts.codeHash ? 'a contract' : 'no code'}${facts.balanceWei !== undefined ? `, balance ${(Number(BigInt(facts.balanceWei)) / 1e18).toPrecision(3)} native` : ''}${facts.nonce <= 1 && !facts.codeHash ? ' (barely used)' : ''}`;
+  } else if (facts.error) seen = `; on-chain facts unreadable (${facts.error})`;
+  return { ...out, verdict: 'warn', why: `unknown counterparty: not allow-listed, not from a trusted API, never approved${seen} ⇒ ask a human`,
+    ...(Number.isInteger(facts.nonce) ? { activity: { txsSent: facts.nonce, contract: !!facts.codeHash, ...(facts.balanceWei !== undefined ? { balanceWei: facts.balanceWei } : {}) } } : {}) };
 }
 
 // ---- The transactions themselves (2026-11-06, after screen 4: "every allow path trusts the caller") ----
@@ -328,7 +336,8 @@ export async function readFacts(to, rpcs = CHAIN_RPC) {
         body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getProof', params: [a, [], 'latest'] }) });
       const j = await res.json();
       if (!j.result?.codeHash) throw new Error(JSON.stringify(j.error ?? 'no codeHash').slice(0, 80));
-      facts[key(c.chain, a)] = { codeHash: EMPTY_CODE.has(norm(j.result.codeHash)) ? null : norm(j.result.codeHash), nonce: Number(BigInt(j.result.nonce)) };
+      facts[key(c.chain, a)] = { codeHash: EMPTY_CODE.has(norm(j.result.codeHash)) ? null : norm(j.result.codeHash), nonce: Number(BigInt(j.result.nonce)),
+        ...(j.result.balance ? { balanceWei: BigInt(j.result.balance).toString() } : {}) };
     } catch (e) { facts[key(c.chain, a)] = { error: String(e.message ?? e).slice(0, 80) }; }
   }));
   return facts;

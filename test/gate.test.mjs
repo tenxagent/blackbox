@@ -198,6 +198,18 @@ export const tests = [
       assert.equal(spentLast24h([earlier], NOW), 28);
       assert.equal(go([nat(10n ** 15n)], 2.24, [earlier]).action, 'gate_refuse');   // 28 + 3 > 30
     } },
+  { name: "activity (2026-11-07, the prompt's age/activity signal): an unknown payee's warn names what the chain shows; unreadable facts are said, not guessed",
+    fn() {
+      const used = judgeCounterparty({ address: NEW, chain: 'robinhood' }, P, new Map(), { nonce: 1, codeHash: null, balanceWei: '2000000000000000' });
+      assert.equal(used.verdict, 'warn'); assert.match(used.why, /on chain: 1 tx sent, no code, balance 0\.00200 native \(barely used\)/);
+      assert.deepEqual(used.activity, { txsSent: 1, contract: false, balanceWei: '2000000000000000' });
+      const busy = judgeCounterparty({ address: NEW, chain: 'robinhood' }, P, new Map(), { nonce: 812, codeHash: HASH });
+      assert.match(busy.why, /on chain: 812 txs sent, a contract/); assert.doesNotMatch(busy.why, /barely used/);
+      const blind = judgeCounterparty({ address: NEW, chain: 'robinhood' }, P, new Map(), { error: 'timeout' });
+      assert.equal(blind.verdict, 'warn'); assert.match(blind.why, /on-chain facts unreadable \(timeout\)/); assert.equal(blind.activity, undefined);
+      // an allow-listed or prior-approved payee is not touched by these facts
+      assert.equal(judgeCounterparty({ address: RELAY, chain: 'robinhood' }, P, new Map(), { codeHash: HASH, nonce: 1 }).verdict, 'allow');
+    } },
   { name: 'txs: without txs the decision is exactly what it was before (the judge steps run that path)',
     fn() {
       const a = evaluate({ rows: [], anchor: fresh, pendingUsd: 3, nowMs: NOW, policy: P, to: OK, facts: F });
