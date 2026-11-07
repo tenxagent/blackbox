@@ -41,6 +41,10 @@
   form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   input[type="text"], select { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--fg); min-width: 0; }
   input[type="text"] { flex: 1 1 260px; }
+  input[type="number"] { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--fg); width: 7em; }
+  #gate-examples button { background: var(--card); color: var(--accent); margin: 2px 0; }
+  #gate-reasons { padding-left: 1.2em; }
+  #gate-reasons li { display: list-item; grid-template-columns: none; margin: 4px 0; overflow-wrap: anywhere; }
   button { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent); color: #fff; cursor: pointer; }
   ol { list-style: none; padding: 0; margin: 0; }
   li { display: grid; grid-template-columns: 56px 150px 80px 1fr; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
@@ -101,6 +105,20 @@
   <h2>6. Last 50 decisions</h2>
   <p class="sub">Newest first. Transaction links open the Robinhood Chain explorer; ✓ means <code>node src/rh-proof.mjs --all</code> found the receipt and it was sent from the agent wallet.</p>
   <ol id="decisions"></ol>
+
+  <h2>7. Try the gate</h2>
+  <p class="sub">The agent's own pre-sign decision (<code>src/gate-core.mjs</code>), run in your browser on the published policy, these records, the newest registry anchor, the shared blocklist and the payee's code read from its chain. It judges the description only: the agent's wrapper also shows it the unsigned transactions.</p>
+  <p id="gate-examples">Try: </p>
+  <form id="gate-form">
+    <input type="text" id="gate-address" placeholder="payee address 0x…" aria-label="payee address">
+    <select id="gate-chain" aria-label="chain"><option value="robinhood">Robinhood Chain</option><option value="elysium">Elysium</option></select>
+    <input type="number" id="gate-usd" value="1" min="0" step="0.01" aria-label="USD amount">
+    <select id="gate-role" aria-label="role"><option value="recipient">recipient</option><option value="spender">spender</option><option value="swap target">swap target</option></select>
+    <input type="text" id="gate-recipient" placeholder="final recipient (for routers)" aria-label="final recipient">
+    <button type="submit">Check</button>
+  </form>
+  <div class="status" id="gate-status" data-state="idle"><span class="msg">Pick an example or type a payee.</span></div>
+  <ul id="gate-reasons"></ul>
 </main>
 <script type="module" src="verify.js"></script>
 </body>

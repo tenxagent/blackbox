@@ -1,7 +1,7 @@
 // The browser verifier's logic, run in Node (same module the page loads).
 import { assert, netOrSkip } from './lib.mjs';
 import { readFileSync } from 'node:fs';
-import { checkRecords, describe, readNearAnchor, coverageSummary, flowsSummary, nearRpc, anchorState, AHEAD_MAX_H, PINNED_GRACE_H, pinnedUrl } from '../web/verify.js';
+import { checkRecords, describe, readNearAnchor, coverageSummary, flowsSummary, nearRpc, anchorState, AHEAD_MAX_H, PINNED_GRACE_H, pinnedUrl, gateDemo, GATE_EXAMPLES, GATE_STATE } from '../web/verify.js';
 import { verifySparse, splitLines } from '../src/chain.mjs';
 import { canon } from '../src/canon.mjs';
 
@@ -157,6 +157,29 @@ export const tests = [
       await assert.rejects(nearRpc(net, 'query', {}, fake({ 'a.example': { body: { result: { error: 'wasm execution failed' } } } })), /wasm execution failed/);
       assert.deepEqual(seen, ['a.example']);
       await assert.rejects(nearRpc(net, 'block', {}, fake({ 'a.example': 'down', 'b.example': 'down', 'c.example': 'down' })), /every endpoint/);
+    },
+  },
+  {
+    name: 'page section 7 (try the gate): the five one-tap examples give the verdicts the README promises, on the real policy and records',
+    fn() {
+      const policy = JSON.parse(readFileSync(new URL('../gate.policy.json', import.meta.url), 'utf8')), lines = splitLines(text);
+      const ME = policy.trustedReporters[0].account, BAD = '0x000000000000000000000000000000000000dead';
+      const nowMs = Date.parse('2026-11-07T12:00:00Z');
+      const anchors = [{ seq: 3915, timestampNs: BigInt(nowMs - 3 * 3.6e6) * 1_000_000n, recordsUrl: 'https://raw.githubusercontent.com/tenxagent/blackbox/a0b752c644e35058dbfbaa67fc46856acc171992/data/records.jsonl' }];
+      const sharedValue = { [ME]: { blocklist: { robinhood: { [BAD]: JSON.stringify({ evidence: 'phishing payee from the attack demo (record 3463)', reportedAt: '2026-11-07T10:25:52Z' }) } } } };
+      const RELAY = '0x5567954cd026cebfe486062cb75848e0f1c12e58', relayFacts = { [`robinhood:${RELAY}`]: { codeHash: policy.allow.find((x) => x.address === RELAY).codeHash, nonce: 1 } };
+      const run = (e, extra = {}) => gateDemo({ policy, recordLines: lines, anchors, sharedValue, facts: relayFacts, input: e, nowMs, ...extra });
+      const [phish, relaySelf, relayOther, overCap, fresh] = GATE_EXAMPLES;
+      const r1 = run(phish); assert.equal(r1.action, 'gate_refuse'); assert.match(r1.reasons.join(), /blocklisted by .* \(shared list/);
+      const r2 = run(relaySelf); assert.equal(r2.action, 'gate_allow', r2.reasons.join('; '));
+      const r3 = run(relayOther); assert.equal(r3.action, 'gate_warn'); assert.match(r3.reasons.join(), /not one of the agent's own addresses/);
+      const r4 = run(overCap); assert.equal(r4.action, 'gate_refuse'); assert.match(r4.reasons.join(), /cap/);
+      const addr = '0x' + '7'.repeat(40);
+      const r5 = run({ ...fresh, address: addr }, { facts: { [`robinhood:${addr}`]: { codeHash: null, nonce: 0 } } });
+      assert.equal(r5.action, 'gate_warn'); assert.match(r5.reasons.join(), /fresh address \(0 txs, no code\)/);
+      assert.equal(run(relaySelf, { sharedValue: null }).action, 'gate_refuse');   // shared blocklist unread ⇒ fail closed
+      assert.equal(run(relaySelf, { anchorError: 'registry unreadable' }).action, 'gate_refuse');
+      assert.deepEqual(Object.keys(GATE_STATE), ['gate_allow', 'gate_warn', 'gate_refuse']);
     },
   },
 ];

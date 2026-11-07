@@ -8,6 +8,8 @@
 import { splitLines, verifySparse } from '../src/chain.mjs';
 import { isCanonicalLine } from '../src/canon.mjs';
 import { readAllAnchors } from '../src/registry.mjs';
+import { evaluate, newestPublished, factsFromProof, CHAIN_RPC } from '../src/gate-core.mjs';   // 2026-11-07: the gate's own decision, in the browser
+import { parseShared } from '../src/blocklist-core.mjs';
 
 // the append-only registry (contract/; deployed + locked on mainnet 2026-10-31: DeployContract + new() + DeleteKey in one tx)
 const REGISTRY = '08035588c459e514c632061fb4862fde62297571f1e44716e01bcc9913986e8a';
@@ -297,6 +299,76 @@ export async function readRegistry(network, account) {
   return { codeHash: acc.code_hash, codeOk: acc.code_hash === REGISTRY_CODE_HASH, keyCount: keys.length, anchors };
 }
 
+// ---------------------------------------------------------------- try the gate (section 7, 2026-11-07)
+// The same evaluate() the agent's wrapper calls (src/gate-core.mjs), run here on the policy served with this page, the published
+// records (history: prior sends, 24 h spend), the newest published registry anchor, the shared blocklist read from SocialDB and
+// the payee's code + nonce read from its chain. It judges the description only: the agent's wrapper also shows the gate the
+// unsigned transactions (decoded payees, USDG amounts, digests), which a form cannot.
+export const GATE_STATE = { gate_allow: 'ok', gate_warn: 'ahead', gate_refuse: 'bad' };
+/** Pure (test/web.test.mjs): → evaluate() result for one typed request. sharedValue = SocialDB get() value, or null when unread. */
+export function gateDemo({ policy, recordLines, anchors, anchorError, sharedValue, facts, input, nowMs }) {
+  const rows = recordLines.map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+  const anchor = anchorError ? { error: anchorError } : newestPublished(anchors ?? []);
+  const shared = sharedValue === null || sharedValue === undefined ? { error: 'not read' } : parseShared(sharedValue, policy.trustedReporters);
+  const c = { address: String(input.address ?? '').trim(), chain: input.chain, role: input.role, ...(input.recipient ? { recipient: String(input.recipient).trim() } : {}) };
+  return evaluate({ rows, anchor, policy, pendingUsd: Number(input.usd), nowMs, to: [c], facts: facts ?? {}, shared });
+}
+export const GATE_EXAMPLES = [
+  { label: 'the phishing payee', address: '0x000000000000000000000000000000000000dEaD', chain: 'robinhood', usd: 22.16, role: 'recipient', recipient: '' },
+  { label: 'a Relay swap paying the agent', address: '0x5567954cd026cebfe486062cb75848e0f1c12e58', chain: 'robinhood', usd: 3, role: 'spender', recipient: '0x00731cd9e0BC7CAD1b54f85187B09B942cD3be04' },
+  { label: 'the same swap paying someone else', address: '0x5567954cd026cebfe486062cb75848e0f1c12e58', chain: 'robinhood', usd: 3, role: 'spender', recipient: '0x1111111111111111111111111111111111111111' },
+  { label: 'over the daily cap', address: '0x5567954cd026cebfe486062cb75848e0f1c12e58', chain: 'robinhood', usd: 31, role: 'spender', recipient: '0x00731cd9e0BC7CAD1b54f85187B09B942cD3be04' },
+  { label: 'a brand-new address', address: 'random', chain: 'robinhood', usd: 1, role: 'recipient', recipient: '' },
+];
+
+async function setupGateDemo(recordLinesRef) {
+  const form = document.getElementById('gate-form');
+  if (!form) return;
+  const f = (id) => document.getElementById(id);
+  let policy = null, reg = null;
+  const ex = f('gate-examples');
+  for (const e of GATE_EXAMPLES) {
+    const b = el('button', { type: 'button' }, e.label);
+    b.addEventListener('click', () => {
+      const addr = e.address === 'random' ? '0x' + [...crypto.getRandomValues(new Uint8Array(20))].map((x) => x.toString(16).padStart(2, '0')).join('') : e.address;
+      f('gate-address').value = addr; f('gate-chain').value = e.chain; f('gate-usd').value = e.usd; f('gate-role').value = e.role; f('gate-recipient').value = e.recipient;
+      form.requestSubmit();
+    });
+    ex.append(b, ' ');
+  }
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const input = { address: f('gate-address').value, chain: f('gate-chain').value, usd: f('gate-usd').value, role: f('gate-role').value, recipient: f('gate-recipient').value };
+    setStatus('gate-status', 'busy', 'reading the policy, the registry, the shared blocklist and the payee on chain…');
+    f('gate-reasons').replaceChildren();
+    try {
+      policy ??= await (await fetch('../gate.policy.json', { cache: 'no-store' })).json();
+      let anchorError = null;
+      try { reg ??= await readRegistry('mainnet', DEFAULT_ANCHOR_ACCOUNT); } catch (e) { anchorError = `registry unreadable: ${e.message}`; }
+      let sharedValue = null;
+      try {
+        const keys = (policy.trustedReporters ?? []).map((r) => `${r.account}/blocklist/**`);
+        const r = await nearRpc(NEAR.mainnet, 'query', { request_type: 'call_function', finality: 'final', account_id: NEAR.mainnet.socialDb, method_name: 'get', args_base64: btoa(JSON.stringify({ keys })) });
+        sharedValue = JSON.parse(new TextDecoder().decode(new Uint8Array(r.result)));
+      } catch { /* evaluate() refuses: shared blocklist not read */ }
+      const facts = {};
+      const url = CHAIN_RPC[input.chain], a = String(input.address).trim().toLowerCase();
+      if (url && /^0x[0-9a-f]{40}$/.test(a)) {
+        try {
+          const j = await (await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 'bb', method: 'eth_getProof', params: [a, [], 'latest'] }) })).json();
+          facts[`${input.chain}:${a}`] = factsFromProof(j.result);
+        } catch (e) { facts[`${input.chain}:${a}`] = { error: String(e.message ?? e).slice(0, 80) }; }
+      }
+      const r = gateDemo({ policy, recordLines: recordLinesRef(), anchors: reg?.anchors, anchorError, sharedValue, facts, input, nowMs: Date.now() });
+      setStatus('gate-status', GATE_STATE[r.action] ?? 'bad', `${r.action.replace('gate_', 'GATE_').toUpperCase()}: ${r.allow ? 'the gate would let this send through' : r.action === 'gate_warn' ? 'refused until a human approves the payee in the published policy' : 'refused'} (24 h allowed so far: ${usd(r.spent24h)}, newest published anchor ${r.anchorAgeH ?? '?'} h old)`);
+      const list = f('gate-reasons');
+      for (const x of r.reasons) list.append(el('li', {}, x));
+      for (const c of r.counterparties.filter((c) => c.verdict === 'allow')) list.append(el('li', {}, `ALLOW ${c.address}${c.role ? ` (${c.role})` : ''}: ${c.why}`));
+      for (const n of r.notes) list.append(el('li', { class: 'sub' }, n));
+    } catch (e) { setStatus('gate-status', 'bad', `could not run the gate: ${e.message}`); }
+  });
+}
+
 // ---------------------------------------------------------------- page
 if (typeof document !== 'undefined') main();
 
@@ -366,6 +438,7 @@ async function main() {
   const recordsPath = relative(recordsParam) ?? '../data/records.jsonl';
   const text = await (await fetch(recordsPath, { cache: 'no-store' })).text();
   const state = { lines: [], anchor: null };
+  setupGateDemo(() => state.lines);   // section 7: uses the records this page loaded
   await runCheck(text, recordsPath.replace(/^\.\.\//, ''));
 
   document.getElementById('file').addEventListener('change', async (ev) => {
