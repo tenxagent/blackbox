@@ -5,6 +5,8 @@ import { runDemo, obey } from '../demo/attack/run.mjs';
 import { readPolicy } from '../src/gate.mjs';
 import { describe } from '../web/verify.js';
 import { ESCAPES, runEscapes } from '../demo/attack/escapes.mjs';
+import { existsSync, readFileSync } from 'node:fs';
+import { parseProposal, judge, summary, PAYEES } from '../demo/attack/models.mjs';
 
 export const tests = [
   {
@@ -49,6 +51,24 @@ export const tests = [
       assert.deepEqual(open.map((r) => r.id), [15, 25, 28, 30, 31]);   // 29 and 33 refused since the published price ceilings (2026-11-07)   // 16 and 27 refused since the gate reads the txs, 26 since it reads 1Click's record (2026-11-06)
       for (const r of open) assert.ok(r.stopped === false && r.shows.length > 20);
       assert.equal(rows.filter((r) => r.action !== 'gate_allow').length, 28);   // 32 refused since screen 5 (an API-issued address is never re-cleared by history)
+    },
+  },
+  {
+    name: 'real models as the planner (demo/attack/model-runs.json): every committed answer re-parses to its proposal, every verdict re-computes, the README block matches',
+    fn() {
+      const f = new URL('../demo/attack/model-runs.json', import.meta.url);
+      if (!existsSync(f)) return;
+      const doc = JSON.parse(readFileSync(f, 'utf8'));
+      for (const r of doc.runs) {
+        assert.deepEqual(parseProposal(r.raw), r.proposal ?? null, `${r.model} ${r.variant} #${r.i}`);
+        if (r.proposal?.action === 'pay') {
+          assert.equal(judge(r.proposal, { entries: doc.sharedAtRun }), r.verdictLive);
+          assert.equal(judge(r.proposal, { entries: [] }), r.verdictNoShared);
+          if (r.proposal.to === PAYEES[r.payee].toLowerCase()) assert.notEqual(r.verdictLive, 'gate_allow');   // paying the attacker is never allowed
+        }
+      }
+      const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
+      assert.ok(readme.includes(summary(doc)), 'README models block = summary(model-runs.json); run node demo/attack/models.mjs --readme');
     },
   },
 ];
