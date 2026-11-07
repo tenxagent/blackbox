@@ -10,6 +10,9 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { evaluate, readPolicy, readRows } from '../../src/gate.mjs';
 import { PINNED } from './run.mjs';
+// 2026-11-07: the shared blocklist (src/blocklist.mjs) is pinned EMPTY here, so the demo runs offline and its verdicts stay
+// reproducible; the live gate reads it from SocialDB (and has blocked the 0x…dEaD payee there since it was reported).
+const PINNED_SHARED = { entries: [] };
 
 const HERE = (f) => fileURLToPath(new URL(f, import.meta.url));
 const PAYEE = '0x000000000000000000000000000000000000dead';        // the phishing message's payee (run.mjs)
@@ -97,7 +100,7 @@ export function runEscapes() {
     const anchor = e.anchorError ? { error: e.anchorError } : e.anchorAgeH ? { timeMs: nowMs - e.anchorAgeH * H } : fresh;
     let pol = e.blocklist ? { ...policy, block: demoBlock } : policy;
     if (e.human) pol = { ...pol, humanApproved: [{ chain: 'robinhood', address: PAYEE, by: 'someone with push access', at: '2026-11-06' }] };
-    const r = evaluate({ rows: [...history, ...(e.extraRows?.(nowMs) ?? [])], anchor, policy: pol, published: e.published,
+    const r = evaluate({ rows: [...history, ...(e.extraRows?.(nowMs) ?? [])], anchor, policy: pol, published: e.published, shared: PINNED_SHARED,
       pendingUsd: e.usd, nowMs, to: e.to.map((c) => ('chain' in c ? c : { chain: 'robinhood', ...c })), facts: e.facts ?? {}, txs: e.txs });
     return { ...e, action: r.action, reasons: r.reasons, why: r.reasons[0] ?? r.counterparties.map((c) => c.why).join('; ') };
   });

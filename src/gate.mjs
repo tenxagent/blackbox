@@ -43,6 +43,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as rpc from './near/rpc.mjs';
 import { readAllAnchors } from './registry.mjs';
+import { readShared } from './blocklist.mjs';
 
 export const REGISTRY = '08035588c459e514c632061fb4862fde62297571f1e44716e01bcc9913986e8a';
 export const DEFAULT_POLICY = { maxAnchorAgeH: 20, maxDailyUsd: 30 };
@@ -101,7 +102,9 @@ export function judgeCounterparty(c, policy, prior, facts = {}) {
   const addr = norm(c.address), out = { address: addr, chain: c.chain ?? null, role: c.role ?? null };
   if (!addr) return { ...out, verdict: 'block', why: 'no address given' };
   const blocked = (policy.block ?? []).find((e) => norm(e.address) === addr && blockMatches(e, c));
-  if (blocked) return { ...out, verdict: 'block', why: `blocklisted: ${blocked.evidence}` };
+  if (blocked) return { ...out, verdict: 'block', why: blocked.reporter
+    ? `blocklisted by ${blocked.reporter} (shared list, reported ${String(blocked.reportedAt).slice(0, 10)}): ${blocked.evidence}`
+    : `blocklisted: ${blocked.evidence}` };
   if (!c.chain) return { ...out, verdict: 'warn', why: 'no chain given: allow-list entries, approvals and prior sends are per chain' };
   const listed = (policy.allow ?? []).find((e) => norm(e.address) === addr && sameChain(e, c));
   if (listed) {
@@ -223,8 +226,16 @@ export function decodeTxs(txs, ceilings = []) {
 /** The decision. anchor = {timeMs} | {error}. to = counterparties (see judgeCounterparty). published = the result of
  *  checkPublished() (false/undefined = not checked; {ok:false} refuses). txs = the unsigned transactions (optional; see
  *  decodeTxs): when given, the gate checks them against `to` and pendingUsd. Pure (test/gate.test.mjs). */
-export function evaluate({ rows, anchor, policy = {}, pendingUsd, nowMs, failOpen = false, to, facts = {}, published, txs }) {
-  const p = { ...DEFAULT_POLICY, ...policy }, reasons = [], notes = [];
+export function evaluate({ rows, anchor, policy = {}, pendingUsd, nowMs, failOpen = false, to, facts = {}, published, txs, shared }) {
+  const base = { ...DEFAULT_POLICY, ...policy }, reasons = [], notes = [];
+  // 2026-11-07: the shared blocklist (src/blocklist.mjs). When the published policy trusts reporters, their SocialDB reports
+  // count as block entries; if they could not be read the gate refuses (fail closed), as it does when the registry is unreadable.
+  let sharedEntries = [];
+  if ((base.trustedReporters ?? []).length) {
+    if (!shared || shared.error) reasons.push(`shared blocklist not read (${shared?.error ?? 'not given'}): refusing (fail closed)`);
+    else sharedEntries = shared.entries ?? [];
+  }
+  const p = sharedEntries.length ? { ...base, block: [...(base.block ?? []), ...sharedEntries] } : base;
   if (published && !published.ok) reasons.push(`policy not usable: ${published.why}`);
   if (!(typeof pendingUsd === 'number' && Number.isFinite(pendingUsd) && pendingUsd >= 0)) reasons.push('pending USD must be a number ≥ 0');
   let anchorAgeH = null;
@@ -264,12 +275,13 @@ export function evaluate({ rows, anchor, policy = {}, pendingUsd, nowMs, failOpe
   // action: what the caller records. Only-warn refusals are 'gate_warn' (waiting for a human), every other refusal 'gate_refuse'.
   const onlyWarn = reasons.length > 0 && counterparties.some((c) => c.verdict === 'warn') && reasons.every((r) => r.startsWith('WARN '));
   const allow = reasons.length === 0;
-  const { allow: _a, block: _b, trustedApis: _t, humanApproved: _h, comment: _c, self: _s, priceCeilings: _pc, ...limits } = p;
+  const { allow: _a, block: _b, trustedApis: _t, humanApproved: _h, comment: _c, self: _s, priceCeilings: _pc, trustedReporters: _tr, ...limits } = p;
   if (dec?.bounded.length) notes.push(`counted at published price ceilings (an upper bound): ${dec.bounded.join('; ')}`);
   const countedUsd = Math.round(capUsd * 1e6) / 1e6;
   return { allow, action: allow ? 'gate_allow' : onlyWarn ? 'gate_warn' : 'gate_refuse', reasons, notes, counterparties,
     anchorAgeH: anchorAgeH === null ? null : +anchorAgeH.toFixed(2), spent24h: +spent24h.toFixed(2), pendingUsd, policy: limits,
     ...(Number.isFinite(pendingUsd) && countedUsd > pendingUsd ? { countedUsd } : {}),
+    ...((base.trustedReporters ?? []).length ? { sharedBlocklist: { reporters: base.trustedReporters.length, entries: sharedEntries.length } } : {}),
     ...(dec ? { shownTxs: dec.shown, shownUsd: dec.usd, ...(dec.bounded.length ? { ceilingUsd: dec.ceilingUsd } : {}) } : {}) };
 }
 
@@ -412,7 +424,8 @@ async function main() {
   const facts = has('no-code-check') ? {} : await readAllFacts(to, policy);
   const published = has('require-published') ? await checkPublished(opt('policy') ? path.resolve(opt('policy')) : POLICY_FILE) : undefined;
   const txs = opt('txs') ? JSON.parse(readFileSync(path.resolve(opt('txs')), 'utf8')) : undefined;   // [{chain, to, data, value}] (2026-11-06)
-  const r = evaluate({ rows, anchor, policy, pendingUsd: Number(opt('pending-usd')), nowMs, failOpen: has('fail-open'), to, facts, published, txs });
+  const shared = (policy.trustedReporters ?? []).length ? await readShared(policy.trustedReporters, opt('network', 'mainnet')) : undefined;   // 2026-11-07
+  const r = evaluate({ rows, anchor, policy, pendingUsd: Number(opt('pending-usd')), nowMs, failOpen: has('fail-open'), to, facts, published, txs, shared });
   console.log(JSON.stringify({ ...r, anchorSeq: anchor.seq }));
   process.exit(r.allow ? 0 : 1);
 }

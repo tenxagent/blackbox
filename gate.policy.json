@@ -1,5 +1,5 @@
 {
- "comment": "Policy for src/gate.mjs (the pre-sign gate). Rules 1-2 use maxAnchorAgeH and maxDailyUsd. Rule 3 (counterparty) uses self, allow, trustedApis, humanApproved and block. Every entry says where it came from. Addresses are public contracts or APIs, or the agent's own public addresses (self), never a person's wallet. The agent's gate uses only the version published on GitHub main, so a change counts once it is public. priceCeilings (2026-11-07): every amount the gate cannot price exactly (only USDG is $1) is counted at a published upper price per chain and token ('native' = the chain's own coin); rule 2 counts the larger of that and the caller's figure, and an amount with no ceiling is refused. A ceiling below the market lets a caller understate by at most market/ceiling.",
+ "comment": "Policy for src/gate.mjs (the pre-sign gate). Rules 1-2 use maxAnchorAgeH and maxDailyUsd. Rule 3 (counterparty) uses self, allow, trustedApis, humanApproved and block. Every entry says where it came from. Addresses are public contracts or APIs, or the agent's own public addresses (self), never a person's wallet. The agent's gate uses only the version published on GitHub main, so a change counts once it is public. priceCeilings (2026-11-07): every amount the gate cannot price exactly (only USDG is $1) is counted at a published upper price per chain and token ('native' = the chain's own coin); rule 2 counts the larger of that and the caller's figure, and an amount with no ceiling is refused. A ceiling below the market lets a caller understate by at most market/ceiling. trustedReporters (2026-11-07): the NEAR accounts whose SocialDB reports (<account>/blocklist/<chain>/<address>, with evidence) the gate counts as block entries (src/blocklist.mjs); if they cannot be read, the gate refuses.",
  "maxAnchorAgeH": 20,
  "maxDailyUsd": 30,
  "self": [
@@ -119,6 +119,13 @@
    "usd": 110,
    "source": "https://coins.llama.fi/prices/current/coingecko:hyperliquid = $78.87 on 2026-11-07 01:3xZ; ceiling ≈ 1.39× market",
    "added": "2026-11-07T01:40Z"
+  }
+ ],
+ "trustedReporters": [
+  {
+   "account": "00537bf24e164c18f3512de1040d34c88a11f37976a3ef6d4de673dc9cef6590",
+   "label": "claude-10x, this agent (its NEAR account); reports with `node src/blocklist.mjs report`",
+   "added": "2026-11-07T11:40Z"
   }
  ]
 }

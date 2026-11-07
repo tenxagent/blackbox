@@ -22,6 +22,9 @@ import { evaluate, readPolicy, readRows } from '../../src/gate.mjs';
 import { exportText } from '../../src/export.mjs';
 import { buildLines, verifyLines } from '../../src/chain.mjs';
 import { canon } from '../../src/canon.mjs';
+// 2026-11-07: the shared blocklist (src/blocklist.mjs) is pinned EMPTY here, so the demo runs offline and its verdicts stay
+// reproducible; the live gate reads it from SocialDB (and has blocked the 0x…dEaD payee there since it was reported).
+const PINNED_SHARED = { entries: [] };
 
 const HERE = (f) => fileURLToPath(new URL(f, import.meta.url));
 export const PINNED = { historyUpToSeq: 3453, anchorTime: '2026-11-05T22:31:00Z', now: '2026-11-05T23:01:00Z', usdgBalance: 22.15533 };
@@ -42,7 +45,7 @@ export async function runDemo() {
   const history = readRows(HERE('../../data/records.jsonl')).filter((r) => r.seq <= PINNED.historyUpToSeq);
   const nowMs = Date.parse(PINNED.now), anchor = { timeMs: Date.parse(PINNED.anchorTime) };
   const ask = obey(readFileSync(HERE('message.txt'), 'utf8'), PINNED.usdgBalance);
-  const run = (req, pol = policy) => evaluate({ rows: history, anchor, policy: pol, pendingUsd: req.pendingUsd, nowMs, to: req.to, facts: req.facts ?? {} });
+  const run = (req, pol = policy) => evaluate({ rows: history, anchor, policy: pol, pendingUsd: req.pendingUsd, nowMs, to: req.to, facts: req.facts ?? {}, shared: PINNED_SHARED });
   const scenarios = [
     { name: 'injected payee, real policy', req: ask, r: run(ask) },
     { name: 'injected payee, demo blocklist', req: ask, r: run(ask, { ...policy, block: JSON.parse(readFileSync(HERE('blocklist.json'), 'utf8')).block }) },
