@@ -84,10 +84,16 @@ console.log(`anchored seq ${fin.seq} on mainnet (was ${anchoredSeq}): tx ${sent[
 // never hidden, and does not undo the SocialDB anchor (the next cycle sees the registry behind and the operator re-runs registry-cli).
 let registry;
 if (process.env.BLACKBOX_REGISTRY_KEY_FILE) {
-  const r = spawnSync('node', ['src/registry-cli.mjs', 'anchor', '--seq', String(fin.seq), '--records-url', `${REPO_RAW}/${sha}/data/records.jsonl`, '--send', '--i-understand-mainnet'],
-    { cwd: ROOT, encoding: 'utf8', input: fs.readFileSync(process.env.BLACKBOX_REGISTRY_KEY_FILE, 'utf8'), env: { ...process.env, BLACKBOX_NEAR_KEY_FILE: '-' }, timeout: 120_000 });
-  const line = (r.stdout || '').split('\n').reverse().find((l) => l.includes('"action":"registry_anchor"'));
-  registry = line ? JSON.parse(line) : { ok: false, err: String(r.stderr || r.stdout || r.error || '').trim().split('\n').pop().slice(0, 300) };
+  // 2026-11-07: one retry after 15 s (the 14:31Z cycle's registry call crashed once and succeeded when re-run by hand); a retry
+  // after a call that did land fails harmlessly ('seq ≤ last'). The error kept is the thrown message, not node's version line.
+  const key = fs.readFileSync(process.env.BLACKBOX_REGISTRY_KEY_FILE, 'utf8');
+  const once = () => spawnSync('node', ['src/registry-cli.mjs', 'anchor', '--seq', String(fin.seq), '--records-url', `${REPO_RAW}/${sha}/data/records.jsonl`, '--send', '--i-understand-mainnet'],
+    { cwd: ROOT, encoding: 'utf8', input: key, env: { ...process.env, BLACKBOX_NEAR_KEY_FILE: '-' }, timeout: 120_000 });
+  const okLine = (r) => (r.stdout || '').split('\n').reverse().find((l) => l.includes('"action":"registry_anchor"') && l.includes('"ok":true'));
+  const errOf = (r) => { const t = String(r.stderr || r.stdout || r.error || '').trim().split('\n'); return (t.find((l) => /Error|refus|fail/i.test(l)) ?? t.pop() ?? '').slice(0, 300); };
+  let r = once(), line = okLine(r);
+  if (!line) { console.log(`registry anchor attempt 1 failed: ${errOf(r)}; retrying in 15 s`); spawnSync('sleep', ['15']); r = once(); line = okLine(r); }
+  registry = line ? JSON.parse(line) : { ok: false, err: errOf(r) };
   console.log(line || `registry anchor FAILED: ${registry.err}`);
 }
 console.log(JSON.stringify({ ok: true, seq: fin.seq, head: fin.head, commit: sha, near_tx: sent[1], account, ...(registry ? { registry: { ok: registry.ok, near_tx: registry.near_tx } } : {}) }));
