@@ -4,7 +4,7 @@
  "agentWallet": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
  "explorerTx": "https://robinhoodchain.blockscout.com/tx/",
  "counts": {
-  "verified": 131,
+  "verified": 134,
   "not_on_rh": 9
  },
  "results": [
@@ -1782,6 +1782,45 @@
    "what": "sleeve_sell",
    "result": "not_on_rh",
    "note": "record says chain \"elysium\""
+  },
+  {
+   "seq": 3845,
+   "tx": "0x5fea2e5889287f1cbcd297d82a4554524b0876232cb70b4a498658192fe7bbea",
+   "chain": null,
+   "what": "free_mint",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 108056070,
+   "blockTime": "2026-11-07T02:05:55.000Z",
+   "lagSec": 2,
+   "to": "0xe2d0be5a9a09acc0376aff1f0d5de83c3a742e4e"
+  },
+  {
+   "seq": 3846,
+   "tx": "0x39f6dc7dc759d6d4ecc6b875c882313d4454e33dd1a7441b4451b314e7fce864",
+   "chain": null,
+   "what": "approve_nft_conduit",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 108056423,
+   "blockTime": "2026-11-07T02:06:31.000Z",
+   "lagSec": 5,
+   "to": "0xe2d0be5a9a09acc0376aff1f0d5de83c3a742e4e"
+  },
+  {
+   "seq": 3898,
+   "tx": "0xe9ca5fbe42d6ee54f065d543e504bd9c4cdfae7a74a1753ae8c7bb472787795d",
+   "chain": null,
+   "what": "flock_reinvest",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 108158755,
+   "blockTime": "2026-11-07T05:08:51.000Z",
+   "lagSec": 6,
+   "to": "0x8f3ea5d1333971f38026e04747d985748385f645"
   }
  ]
 }
