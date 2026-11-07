@@ -170,6 +170,34 @@ export const tests = [
       assert.equal(go([]).action, 'gate_refuse');
       const cap = go([tUSDG(HUMAN, 31_000_000)], 31); assert.match(cap.reasons.join(), /exceed the \$30 cap/);
     } },
+  { name: 'price ceilings (2026-11-07, escape 29): an amount the gate cannot price exactly is counted at the published ceiling, or refused without one',
+    fn() {
+      const CEIL = [{ chain: 'robinhood', token: 'native', symbol: 'ETH', decimals: 18, usd: 3000 }, { chain: 'robinhood', token: OTHER_TOKEN, symbol: 'OTH', decimals: 18, usd: 0.5 }];
+      const PC = { ...P, priceCeilings: CEIL };
+      const nat = (wei) => ({ chain: 'robinhood', to: RELAY, data: '0x12345678', value: '0x' + BigInt(wei).toString(16) });
+      const aOTH = (n) => ({ chain: 'robinhood', to: OTHER_TOKEN, data: '0x095ea7b3' + word(RELAY) + word(n), value: '0x0' });
+      // decodeTxs: native and the listed token are counted at their ceilings; without ceilings both are unpriced
+      const d = decodeTxs([nat(10n ** 15n), aOTH(4n * 10n ** 18n), tUSDG(SELF, 1_000_000)], CEIL);
+      assert.equal(d.usd, 1); assert.equal(d.ceilingUsd, 5);   // 0.001 ETH × $3,000 + 4 OTH × $0.5
+      assert.equal(d.unpriced.length, 0); assert.equal(d.bounded.length, 2);
+      assert.equal(decodeTxs([nat(10n ** 15n), aOTH(1n)]).unpriced.length, 2);
+      assert.equal(decodeTxs([{ ...nat(10n ** 15n), chain: 'elysium' }], CEIL).unpriced.length, 1);   // ceilings are per chain
+      const go = (txs, usd, rows = []) => evaluate({ rows, anchor: fresh, pendingUsd: usd, nowMs: NOW, policy: PC, to: OK, facts: F, txs });
+      // an honest small native swap is allowed; the decision counts it at the ceiling and records that
+      const ok = go([nat(10n ** 15n)], 2.24);
+      assert.equal(ok.action, 'gate_allow', ok.reasons.join('; ')); assert.equal(ok.countedUsd, 3); assert.match(ok.notes.join(), /published price ceilings/);
+      // escape 27 with the native coin: 0.012 ETH declared as $0.01 counts $36 > the $30 cap
+      const under = go([nat(12n * 10n ** 15n)], 0.01);
+      assert.equal(under.action, 'gate_refuse'); assert.match(under.reasons.join(), /\$36\.00 in 24 h would exceed the \$30 cap/);
+      // escape 29: a token with no published ceiling cannot be bounded ⇒ refused
+      const UNK = '0x' + '9'.repeat(40);
+      const unk = go([{ chain: 'robinhood', to: UNK, data: '0x095ea7b3' + word(RELAY) + word(10n ** 24n), value: '0x0' }], 0.01);
+      assert.equal(unk.action, 'gate_refuse'); assert.match(unk.reasons.join(), /cannot bound this spend/);
+      // rule 2 history: an earlier decision's countedUsd counts, not only its declared figure
+      const earlier = { ...allow('2026-11-05T11:00:00Z', 0.01), countedUsd: 28 };
+      assert.equal(spentLast24h([earlier], NOW), 28);
+      assert.equal(go([nat(10n ** 15n)], 2.24, [earlier]).action, 'gate_refuse');   // 28 + 3 > 30
+    } },
   { name: 'txs: without txs the decision is exactly what it was before (the judge steps run that path)',
     fn() {
       const a = evaluate({ rows: [], anchor: fresh, pendingUsd: 3, nowMs: NOW, policy: P, to: OK, facts: F });

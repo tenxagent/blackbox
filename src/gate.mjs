@@ -56,7 +56,8 @@ export function spentLast24h(rows, nowMs) {
     const r = x?.row ?? x;
     if (r?.engine !== 'gate' || r.action !== 'gate_allow' || typeof r.pendingUsd !== 'number') continue;
     const t = Date.parse(r.t);
-    if (t <= nowMs && nowMs - t < DAY_MS) sum += r.pendingUsd;
+    // 2026-11-07: a decision records countedUsd when the gate counted more than the caller declared (published price ceilings)
+    if (t <= nowMs && nowMs - t < DAY_MS) sum += Math.max(r.pendingUsd, typeof r.countedUsd === 'number' ? r.countedUsd : 0);
   }
   return sum;
 }
@@ -146,8 +147,10 @@ export function judgeCounterparty(c, policy, prior, facts = {}) {
 // then decodes them itself instead of believing the caller's description: an ERC-20 transfer(to, amount) or approve(spender,
 // amount) names its payee or spender in the calldata, any other call (or native value) reaches tx.to. Every address it finds
 // must be one the caller declared in `to` (else refuse), an unlimited approval is refused, and the USDG the transactions move
-// or approve may not exceed the USD the caller declared (2 % + 1 cent, as in flows.mjs). Only USDG is priced; native coin and
-// other tokens are reported as unpriced, and the caller's USD figure stands for them. Each tx gets a digest of chain|to|data|value
+// or approve may not exceed the USD the caller declared (2 % + 1 cent, as in flows.mjs). Only USDG is priced exactly. Since
+// 2026-11-07 (escape 29) every other amount, native coin included, is counted at a PUBLISHED price ceiling (gate.policy.json
+// priceCeilings: chain, token or "native", decimals, an upper USD price with its source), and rule 2 counts the larger of that and
+// the caller's figure; an amount with no ceiling is refused, since the gate cannot bound it. Each tx gets a digest of chain|to|data|value
 // that the caller records with the decision, so src/flows.mjs can show afterwards that the transaction on chain is the one the
 // gate was shown (kind tx_not_shown_to_gate). What a router or bridge does inside its own calldata (e.g. a Relay swap's final
 // recipient) is not decoded: those entries still need the caller's recipient (forwardProblem).
@@ -166,10 +169,22 @@ export function txDigest({ chain, to, data, value }) {
   return createHash('sha256').update(`${norm(chain)}|${norm(to)}|${norm(data || '0x')}|${bigOf(value).toString()}`).digest('hex');
 }
 
-/** Pure: decode the unsigned txs → {counterparties, usd, unlimited, unpriced, errors, shown}. */
-export function decodeTxs(txs) {
-  const counterparties = [], unlimited = [], unpriced = [], errors = [], shown = [];
-  let usd = 0;
+/** Published price ceilings → { 'chain:token' | 'chain:native': entry } (entries without a finite usd or integer decimals are ignored). */
+export function ceilingMap(list) {
+  const m = {};
+  for (const c of Array.isArray(list) ? list : []) {
+    if (!c?.chain || !c?.token || !(Number.isFinite(c.usd) && c.usd > 0) || !Number.isInteger(c.decimals)) continue;
+    m[`${norm(c.chain)}:${norm(c.token)}`] = c;
+  }
+  return m;
+}
+
+/** Pure: decode the unsigned txs → {counterparties, usd (USDG, exact), ceilingUsd (other amounts at the published ceilings),
+ *  bounded, unlimited, unpriced (no ceiling: refused by evaluate), errors, shown}. */
+export function decodeTxs(txs, ceilings = []) {
+  const counterparties = [], unlimited = [], unpriced = [], errors = [], shown = [], bounded = [], cm = ceilingMap(ceilings);
+  let usd = 0, ceilingUsd = 0;
+  const atCeiling = (i, c, amount, what) => { const u = (Number(amount) / 10 ** c.decimals) * c.usd; ceilingUsd += u; bounded.push(`tx ${i}: ${what} ${Number(amount) / 10 ** c.decimals} ${c.symbol ?? ''} ≤ $${u.toFixed(2)} (ceiling $${c.usd})`); };
   for (const [i, t] of (txs ?? []).entries()) {
     const chain = t?.chain ? norm(t.chain) : null, to = norm(t?.to), data = norm(t?.data || '0x');
     let value;
@@ -177,17 +192,24 @@ export function decodeTxs(txs) {
     if (!chain || !/^0x[0-9a-f]{40}$/.test(to) || !/^0x([0-9a-f]{2})*$/.test(data)) { errors.push(`tx ${i}: needs a chain, a 0x to-address and hex data`); continue; }
     const kind = SELECTOR[data.slice(0, 10)], tok = PRICED_TOKENS[`${chain}:${to}`];
     shown.push({ chain, to, value: value.toString(), selector: data.slice(0, 10), digest: txDigest({ chain, to, data, value }) });
-    if (value > 0n) { counterparties.push({ address: to, chain, role: 'native value', tx: i }); unpriced.push(`tx ${i}: ${value} wei of the native coin`); }
+    if (value > 0n) {
+      counterparties.push({ address: to, chain, role: 'native value', tx: i });
+      const c = cm[`${chain}:native`];
+      if (c) atCeiling(i, c, value, 'native'); else unpriced.push(`tx ${i}: ${value} wei of ${chain}'s native coin (no published price ceiling)`);
+    }
     if (kind) {
       if (data.length !== 2 + 8 + 128) { errors.push(`tx ${i}: ${kind} calldata has the wrong length`); continue; }
       const who = '0x' + data.slice(34, 74), amount = BigInt('0x' + data.slice(74, 138));
       counterparties.push({ address: who, chain, role: kind === 'transfer' ? 'transfer recipient' : 'approve spender', tx: i });
       if (kind === 'approve' && amount === MAX_UINT) unlimited.push({ spender: who, token: to, symbol: tok?.symbol ?? to });
       else if (tok) usd += Number(amount) / 10 ** tok.decimals * tok.usd;
-      else if (amount > 0n) unpriced.push(`tx ${i}: ${kind} of ${amount} units of token ${to}`);
+      else if (amount > 0n) {
+        const c = cm[`${chain}:${to}`];
+        if (c) atCeiling(i, c, amount, kind); else unpriced.push(`tx ${i}: ${kind} of ${amount} units of token ${to} on ${chain} (no published price ceiling)`);
+      }
     } else if (value === 0n) counterparties.push({ address: to, chain, role: 'call target', tx: i });
   }
-  return { counterparties, usd: Math.round(usd * 1e6) / 1e6, unlimited, unpriced, errors, shown };
+  return { counterparties, usd: Math.round(usd * 1e6) / 1e6, ceilingUsd: Math.round(ceilingUsd * 1e6) / 1e6, bounded, unlimited, unpriced, errors, shown };
 }
 
 /** The decision. anchor = {timeMs} | {error}. to = counterparties (see judgeCounterparty). published = the result of
@@ -209,7 +231,7 @@ export function evaluate({ rows, anchor, policy = {}, pendingUsd, nowMs, failOpe
   const list = (Array.isArray(to) ? to : to ? [to] : []).map((c) => (typeof c === 'string' ? { address: c } : c));
   let dec = null;
   if (txs !== undefined) {
-    dec = decodeTxs(txs);
+    dec = decodeTxs(txs, p.priceCeilings);
     if (!dec.shown.length && !dec.errors.length) reasons.push('no transaction shown (txs is empty): refusing (fail closed)');
     for (const e of dec.errors) reasons.push(`transaction not decodable: ${e}`);
     for (const d of dec.counterparties) {
@@ -217,8 +239,10 @@ export function evaluate({ rows, anchor, policy = {}, pendingUsd, nowMs, failOpe
     }
     for (const u of dec.unlimited) reasons.push(`REFUSE ${u.spender} (approve spender): unlimited ${u.symbol} approval`);
     if (Number.isFinite(pendingUsd) && dec.usd > pendingUsd * 1.02 + 0.01) reasons.push(`the transactions move or approve $${dec.usd} of USDG; the caller declared $${pendingUsd}`);
+    for (const u of dec.unpriced) reasons.push(`REFUSE: the gate cannot bound this spend: ${u}; publish a price ceiling for it (gate.policy.json priceCeilings)`);
   }
-  const capUsd = Math.max(Number.isFinite(pendingUsd) ? pendingUsd : 0, dec?.usd ?? 0);
+  // rule 2 counts the larger of the caller's figure and what the gate counted itself (USDG exactly + other amounts at the ceilings)
+  const capUsd = Math.max(Number.isFinite(pendingUsd) ? pendingUsd : 0, (dec?.usd ?? 0) + (dec?.ceilingUsd ?? 0));
   if (Number.isFinite(pendingUsd) && spent24h + capUsd > p.maxDailyUsd) {
     reasons.push(`$${(spent24h + capUsd).toFixed(2)} in 24 h would exceed the $${p.maxDailyUsd} cap ($${spent24h.toFixed(2)} already allowed)`);
   }
@@ -232,11 +256,13 @@ export function evaluate({ rows, anchor, policy = {}, pendingUsd, nowMs, failOpe
   // action: what the caller records. Only-warn refusals are 'gate_warn' (waiting for a human), every other refusal 'gate_refuse'.
   const onlyWarn = reasons.length > 0 && counterparties.some((c) => c.verdict === 'warn') && reasons.every((r) => r.startsWith('WARN '));
   const allow = reasons.length === 0;
-  const { allow: _a, block: _b, trustedApis: _t, humanApproved: _h, comment: _c, self: _s, ...limits } = p;
-  if (dec?.unpriced.length) notes.push(`not priced by the gate (the caller's USD stands): ${dec.unpriced.join('; ')}`);
+  const { allow: _a, block: _b, trustedApis: _t, humanApproved: _h, comment: _c, self: _s, priceCeilings: _pc, ...limits } = p;
+  if (dec?.bounded.length) notes.push(`counted at published price ceilings (an upper bound): ${dec.bounded.join('; ')}`);
+  const countedUsd = Math.round(capUsd * 1e6) / 1e6;
   return { allow, action: allow ? 'gate_allow' : onlyWarn ? 'gate_warn' : 'gate_refuse', reasons, notes, counterparties,
     anchorAgeH: anchorAgeH === null ? null : +anchorAgeH.toFixed(2), spent24h: +spent24h.toFixed(2), pendingUsd, policy: limits,
-    ...(dec ? { shownTxs: dec.shown, shownUsd: dec.usd } : {}) };
+    ...(Number.isFinite(pendingUsd) && countedUsd > pendingUsd ? { countedUsd } : {}),
+    ...(dec ? { shownTxs: dec.shown, shownUsd: dec.usd, ...(dec.bounded.length ? { ceilingUsd: dec.ceilingUsd } : {}) } : {}) };
 }
 
 /** A records_url pinned to a commit (what the cycle writes after publishing), not to a branch like main (what a pre-send anchor
