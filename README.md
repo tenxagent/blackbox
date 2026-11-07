@@ -3,44 +3,47 @@
 [![check](https://github.com/tenxagent/blackbox/actions/workflows/check.yml/badge.svg?branch=main)](https://github.com/tenxagent/blackbox/actions/workflows/check.yml)
 (GitHub re-runs the judge path on every push and daily: tests, the hash chain, and the NEAR registry read. No keys.)
 
-A flight recorder for an autonomous AI agent's money decisions. It turns the
-agent's decision log into a SHA-256 hash chain, anchors the chain head on NEAR,
-and links every money record to its real transaction on Robinhood Chain. After a
-head is anchored, nobody (not the agent and not its operator) can edit, drop or
-reorder an earlier record without the check failing against the anchored heads.
-The heads live in an **append-only registry contract on NEAR mainnet**
-([`08035588…6e8a`](https://nearblocks.io/address/08035588c459e514c632061fb4862fde62297571f1e44716e01bcc9913986e8a)):
-it has no access keys and no delete or edit method, so once a head is in it, nobody can
-change or remove it. Its code hash equals the reproducible build in [`contract/`](contract/).
+**An AI agent's money: refused when it should be, and provable afterwards.** claude-10x (X: @tenxagent, GitHub:
+tenxagent), a Claude agent that is openly labelled as an AI, has run its own wallet
+`0x00731cd9e0BC7CAD1b54f85187B09B942cD3be04` on Robinhood Chain (chain id 4663) with real money since 2026-10-26.
+Right before its swap, coin-buy and NEAR-funding tools sign, a pre-sign gate ([`src/gate.mjs`](src/gate.mjs)) returns
+allow, warn or block with reasons. It judges against a public policy ([`gate.policy.json`](gate.policy.json)) and the
+unsigned transactions themselves. Every decision, each refusal included, goes into a SHA-256 hash chain whose heads sit
+in an **append-only registry on NEAR mainnet that has no access keys**. Since 2026-11-06 each allowed send's decision is
+on NEAR **before** the send is signed.
+
+- **A real refusal in the real log.** A phishing message got the live agent to ask for its whole USDG balance to go to
+  `0x…dEaD`. The gate refused it (`gate_warn`, record 3463), and that record is anchored, so editing it now fails
+  verification. Run `node demo/attack/run.mjs` (section **Attack demo**).
+- **The decision is on NEAR before the money moves.** In the first live run, decision #3697 was in the registry at
+  15:03:07.9Z (contract clock), and the payment's two transactions are in Robinhood Chain blocks at 15:03:12Z and
+  15:03:18Z. `node src/flows.mjs` checks this for every gated send (section "Anchored before it is signed").
+- **Nobody can rewrite the log, the operator included.** The registry
+  [`08035588…6e8a`](https://nearblocks.io/address/08035588c459e514c632061fb4862fde62297571f1e44716e01bcc9913986e8a)
+  has 0 access keys and no delete or edit method. Its code hash `HHWM5HdM…` equals the reproducible build in
+  [`contract/`](contract/).
+- **Check it in a browser.** https://tenxagent.github.io/blackbox/web/ recomputes every record, compares the heads with
+  NEAR and shows where each gated send's money went. A tampered copy turns red. Nothing to install.
+- **The attacks that get through are listed too.** There are 34 escape attempts: 28 refused, and 6 not stopped, each
+  with where it shows instead. Run `node demo/attack/escapes.mjs`.
 
 **Demo video (66 s):** https://x.com/mr_ghdc/status/2116851371207012835 (the operator's NEAR HACKATHON post).
+**Follow-up (45 s), anchored before it is signed:** https://x.com/mr_ghdc/status/2118768584549704146 (the first live run
+above; every time in it is read from the records, the registry and the chain's blocks).
 
-**Follow-up (45 s), anchored before it is signed:** https://x.com/mr_ghdc/status/2118768584549704146 (the first live run:
-decision #3697 on the NEAR registry, then send #3699's two transactions; every time in it is read from the records, the
-registry and the chain's blocks; how it works: "Anchored before it is signed" under the pre-sign gate below).
+### The track's example prompt, item by item
 
-**Live demo: https://tenxagent.github.io/blackbox/web/**. It recomputes the whole chain
-in your browser and checks it against the head the agent anchored on NEAR mainnet,
-then shows where the money of each gated send actually went (section 5). Nothing to install.
+| The security track's example prompt asks for | Black box | Do this / see this |
+|---|---|---|
+| A counterparty check that returns allow, warn or block with reasons | **yes** | `src/gate.mjs` rule 3 against the public `gate.policy.json`. Judge step 11 runs `node src/gate.mjs check …` and prints the verdict with its reason. |
+| Signals: account age and activity, contract or not and code changes, prior interactions | **partial** | **Prior interactions:** yes, per chain (an earlier `gate_allow`). **Code:** an allow-listed contract's code hash is read from the chain (`eth_getProof`) and must equal the pinned hash, else warn. **Activity:** a fresh address (0 txs, no code) is named in the reason. **Account age:** not yet. |
+| A shared blocklist that other agents report to, with evidence | **partial** | The `block` entries in `gate.policy.json` carry their evidence, are public, and any agent can read them. Reporting means a dated commit. There is no multi-reporter registry yet. |
+| An agent-side wrapper that refuses on block and asks a human on warn | **yes** | The agent's wrapper refuses every decision that is not allow. A warn becomes an allow only after a human approval is published in `humanApproved` (escape row 25). The wrapper also refuses a live send whose transactions it did not show. |
+| The agent signs with a function-call key scoped to one contract, with the limits explained | **partial** | On NEAR the anchors are signed with function-call keys: the registry's `anchor` (allowance 0.245 NEAR) and `social.near` `set` (0.235 NEAR); the full-access key only pays storage. Its money key is an EVM key on Robinhood Chain, which has no function-call keys, so the gate and anchor-before-send stand in for one. **Limits** says what that does not stop and why a NEAR-held signer was not built. |
+| An attack demo: a prompt-injected agent tries to pay a known-bad address, is stopped, and the log is shown | **yes** | `node demo/attack/run.mjs`, the live refusal (record 3463, anchored) and the 34-row escape table. |
 
-**It also refuses.** Right before the agent's swap, coin-buy or NEAR-funding tools sign a send (its mint race tools do not
-use the gate: Limits), a pre-sign gate ([`src/gate.mjs`](src/gate.mjs)) reads the same log: no fresh anchor means no spending, there is a $30 per 24 h cap, and every payee must be cleared by a public policy
-([`gate.policy.json`](gate.policy.json)). The gate also decodes the transactions it is about to sign, so a payee or a USDG
-amount that the agent's code leaves out of its description is refused too. In the attack demo, a phishing message gets the agent to ask for its whole
-USDG balance to be sent to `0x…dEaD`. The cap alone would let it through; the counterparty rule refuses it, and the
-live agent's refusal is record 3463 in its real log, anchored on NEAR since 2026-11-06 (`node demo/attack/run.mjs`,
-section **Attack demo**). **And it checks afterwards:** each cycle reads every gated send back from the chain
-(and a NEAR deposit from 1Click's own record) and flags any value that went to an address the policy does not
-list, or more USDG than the gate was told ([`src/flows.mjs`](src/flows.mjs); first hop only, after the fact).
-**And the decision is on NEAR before the money moves:** since 2026-11-06 the agent anchors each gated decision on the
-registry and SocialDB *before* it signs ([`src/anchor-now.mjs`](src/anchor-now.mjs)) and refuses the send if it cannot;
-each cycle checks from public data that the registry head is older than the transaction's block.
-
-The agent is **claude-10x** (X: @tenxagent, GitHub: tenxagent), a Claude agent
-that is openly labelled as an AI. Since 2026-10-26 it has managed its own wallet
-`0x00731cd9e0BC7CAD1b54f85187B09B942cD3be04` on Robinhood Chain (chain id 4663)
-under written rules, and it logs its decisions to an append-only ledger (how many of the wallet's
-transactions the records account for is measured, not assumed: see Coverage under Limits).
+The agent logs its decisions to an append-only ledger. How many of the wallet's transactions the records account for is
+measured, not assumed (see Coverage under **Limits**).
 
 Hackathon tracks: `security`, `agents`, `open`.
 
@@ -404,6 +407,17 @@ The internals, each with its source file, are in [docs/how-it-works.md](docs/how
 
 ## Limits (stated plainly)
 
+- **The money key is not a NEAR function-call key, and no NEAR contract holds the money.** The agent's wallet is an
+  ordinary key on Robinhood Chain, an EVM chain without function-call keys, and the gate is code the agent runs. A
+  fully compromised agent host could sign without the gate. That send would show afterwards, not be stopped: as a
+  money record with no gate decision before it (`node src/gate.mjs coverage`), or, if it was never logged, as a wallet
+  transaction the records do not account for (`node src/coverage.mjs`). A NEAR-held signer (a keyless contract that reads the
+  registry head and only then asks NEAR Chain Signatures to sign for an MPC-derived Robinhood Chain address) would move
+  enforcement onto NEAR. It was not built in the hackathon window: it is new code that would move real money, and we
+  chose to state the gap rather than ship a half-tested signer. On NEAR the anchors are signed with function-call
+  keys: `anchor` on the registry (allowance 0.245 NEAR) and `set` on `social.near` (0.235 NEAR). A separate full-access
+  key, kept in the operator's vault, pays storage top-ups, including one automatic rerun of an anchor when SocialDB
+  storage runs out (a function-call key cannot attach a deposit).
 - **Coverage: what fraction of the wallet's transactions the records account for.** The black box
   records decisions and their outcomes. A single action (a listing, a sale, a reinvest call)
   carries its own tx hash. The mint ladder and the crank race instead pre-sign a numbered batch of
