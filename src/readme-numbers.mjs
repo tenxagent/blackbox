@@ -10,13 +10,13 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { gateCoverage, readRows } from './gate.mjs';
+import { gateCoverage, readRows, ungatedSince } from './gate.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const rd = (p) => readFileSync(path.join(ROOT, p), 'utf8');
 const arg = (k) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : null; };
 
-export function block({ records, verifyHeads, verifyCk, tests, proof, coverage, final, gateCov = null, flows = null }) {
+export function block({ records, verifyHeads, verifyCk, tests, proof, coverage, final, gateCov = null, flows = null, ungated = null }) {
   const t = tests && tests.match(/(\d+) passed, (\d+) failed, (\d+) skipped/);
   const total = t ? Number(t[1]) + Number(t[2]) + Number(t[3]) : null;
   const L = [
@@ -29,6 +29,7 @@ export function block({ records, verifyHeads, verifyCk, tests, proof, coverage, 
     `- Step 4: \`--all\` checks ${proof.total} tx records: ${Object.entries(proof.counts).map(([k, v]) => `${k}: ${v}`).join(' · ')}.`,
     coverage ? `- Coverage (\`node src/coverage.mjs\`): the wallet had sent ${coverage.total} transactions; ${coverage.explainedTx} match a record's own tx hash, ${coverage.explainedBatch} fall inside recorded mint/crank batches, ${coverage.unexplained} are not accounted for (see Limits).` : null,
     gateCov ? `- Gate coverage (\`node src/gate.mjs coverage\`): since the gate went live (${gateCov.since}), ${gateCov.sends} gated send${gateCov.sends === 1 ? '' : 's'} in the records; ${gateCov.covered} had a \`gate_allow\` just before ${gateCov.sends === 1 ? 'it' : 'them'}, ${gateCov.bypassed} a recorded bypass, ${gateCov.missing.length} none.` : null,
+    ungated ? `- Not gated, by design (Limits says why): since the gate went live, ${ungated.length ? ungated.map((u) => `\`${u.action}\` ×${u.n}`).join(', ') : 'none'}, besides the mint and crank race batches.` : null,
     flows ? `- Where the money went (\`node src/flows.mjs\`): ${flows.sends} gated send${flows.sends === 1 ? '' : 's'}, ${flows.txs} tx${flows.txs === 1 ? '' : 's'} read on chain; ${flows.findings.length ? `${flows.findings.length} finding${flows.findings.length === 1 ? '' : 's'} (${[...new Set(flows.findings.map((f) => f.kind))].join(', ')}; seq ${[...new Set(flows.findings.map((f) => f.seq))].join(', ')})` : 'every value that left the wallet went to the agent itself, an allow-listed contract, or a 1Click deposit address whose 1Click record pays the agent, and the USDG out stayed within 2 % + 1 cent of the USD the gate was told'}.` : null,
     '<!-- numbers:end -->',
   ].filter((x) => x !== null);
@@ -48,8 +49,9 @@ function main() {
   let tests = arg('tests');
   if (!tests) { const r = spawnSync(process.execPath, ['test/run.mjs'], { cwd: ROOT, encoding: 'utf8' }); tests = (r.stdout + r.stderr).trim().split('\n').pop(); }
   const gateCov = gateCoverage(readRows(path.join(ROOT, 'data', 'records.jsonl')));
+  const ungated = ungatedSince(readRows(path.join(ROOT, 'data', 'records.jsonl')));
   let flows = null; try { flows = JSON.parse(rd('data/flows.json')); } catch {}
-  const b = block({ records, verifyHeads, verifyCk, tests, proof, coverage, final, gateCov, flows });
+  const b = block({ records, verifyHeads, verifyCk, tests, proof, coverage, final, gateCov, flows, ungated });
   const readme = rd('README.md');
   const re = /<!-- numbers:start[\s\S]*?<!-- numbers:end -->/;
   if (!re.test(readme)) throw new Error('README.md has no <!-- numbers:start --> … <!-- numbers:end --> block');

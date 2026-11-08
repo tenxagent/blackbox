@@ -70,7 +70,7 @@ export const tests = [
       assert.equal(g(OK, { [`robinhood:${RELAY}`]: { codeHash: null } }).action, 'gate_warn');
       assert.ok(/code hash not checked/.test(g(OK).reasons[0]));                                      // no on-chain read => warn                        // code removed => warn
     } },
-  { name: 'rule 3: trusted-API provenance, a committed human approval, or a prior approved send => allow',
+  { name: 'rule 3: trusted-API provenance or a committed human approval => allow; a prior approved send alone => warn (history is a signal since 2026-11-08)',
     fn() {
       const g = (to, rows = []) => evaluate({ rows, anchor: fresh, pendingUsd: 1, nowMs: NOW, policy: P, to });
       const api = g([{ address: NEW, chain: 'robinhood', provenance: { api: '1click.chaindefuser.com', path: '/v0/quote', recipient: SELF } }]);
@@ -78,7 +78,12 @@ export const tests = [
       assert.equal(g([{ address: NEW, chain: 'robinhood', provenance: { api: 'evil.example' } }]).action, 'gate_warn');   // provenance from an API the policy does not name
       assert.ok(g([{ address: HUMAN, chain: 'robinhood' }]).counterparties[0].why.startsWith('approved by a human: operator, 2026-11-06'));
       const before = { t: '2026-11-05T09:00:00Z', engine: 'gate', type: 'gate', action: 'gate_allow', pendingUsd: 1, to: [NEW], counterparties: [{ address: NEW, chain: 'robinhood' }] };
-      assert.equal(g([{ address: NEW, chain: 'robinhood' }], [before]).counterparties[0].why, 'prior interaction: 1 earlier approved send');
+      const again = g([{ address: NEW, chain: 'robinhood' }], [before]);
+      assert.equal(again.action, 'gate_warn'); assert.match(again.counterparties[0].why, /1 earlier approved send on this chain, but history alone never clears a payee/); assert.equal(again.counterparties[0].priorSends, 1);
+      // revocation (screen 6 B-1): an allow-listed router removed from the policy is not cleared by its earlier sends, even with a self recipient
+      const delisted = evaluate({ rows: [{ ...before, to: [RELAY], counterparties: [{ address: RELAY, chain: 'robinhood', verdict: 'allow', why: 'allow-listed: Relay proxy' }] }], anchor: fresh, pendingUsd: 1, nowMs: NOW,
+        policy: { ...P, allow: P.allow.filter((e) => e.address !== RELAY) }, to: [{ address: RELAY, chain: 'robinhood', role: 'spender', recipient: SELF }], facts: F });
+      assert.equal(delisted.action, 'gate_warn');
       assert.equal(g([{ address: NEW, chain: 'elysium' }], [before]).action, 'gate_warn');                 // a prior send on another chain does not count
       assert.equal(priorApproved([{ ...before, counterparties: undefined }], NOW).size, 0);                // a bare `to` list (no chain) counts for nothing
       const refusedBefore = { ...before, action: 'gate_refuse' }, later = { ...before, t: '2026-11-05T13:00:00Z' };

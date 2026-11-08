@@ -42,15 +42,15 @@ export const tests = [
     },
   },
   {
-    name: 'escape attempts: every one of the 33 gets its expected verdict; the 5 not stopped (+ --no-gate) say where they show',
+    name: 'escape attempts: every one of the 35 gets its expected verdict; the 4 not stopped (+ --no-gate) say where they show',
     fn() {
       const rows = runEscapes();
       assert.equal(new Set(ESCAPES.map((e) => e.id)).size, ESCAPES.length);
       for (const r of rows) assert.equal(r.action, r.expect, `#${r.id} ${r.attempt}: ${r.action} ${r.why}`);
       const open = rows.filter((r) => r.action === 'gate_allow');
-      assert.deepEqual(open.map((r) => r.id), [15, 25, 28, 30, 31]);   // 29 and 33 refused since the published price ceilings (2026-11-07)   // 16 and 27 refused since the gate reads the txs, 26 since it reads 1Click's record (2026-11-06)
+      assert.deepEqual(open.map((r) => r.id), [25, 28, 30, 31]);   // 15 refused since 2026-11-08 (history alone never clears a payee)   // 29 and 33 refused since the published price ceilings (2026-11-07)   // 16 and 27 refused since the gate reads the txs, 26 since it reads 1Click's record (2026-11-06)
       for (const r of open) assert.ok(r.stopped === false && r.shows.length > 20);
-      assert.equal(rows.filter((r) => r.action !== 'gate_allow').length, 28);   // 32 refused since screen 5 (an API-issued address is never re-cleared by history)
+      assert.equal(rows.filter((r) => r.action !== 'gate_allow').length, 31);   // 32 refused since screen 5 (an API-issued address is never re-cleared by history)
     },
   },
   {

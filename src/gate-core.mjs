@@ -96,8 +96,11 @@ export function judgeCounterparty(c, policy, prior, facts = {}) {
   }
   const human = (policy.humanApproved ?? []).find((e) => norm(e.address) === addr && sameChain(e, c));
   if (human) return { ...out, verdict: 'allow', via: 'human', why: `approved by a human: ${human.by}, ${human.at} (counts only from the published policy)` };
+  // 2026-11-08 (screen 6 B-1): history no longer clears a payee on its own. Until then an earlier gate_allow was enough, so removing
+  // an allow-list entry or a human approval did not revoke it (and that path skipped the code-hash and final-recipient checks).
+  // Now the published policy is the only thing that clears a payee; earlier approved sends are reported in the reason as a signal.
   const n = prior.get(key(c.chain, addr)) ?? 0;
-  if (n > 0) return { ...out, verdict: 'allow', via: 'prior', why: `prior interaction: ${n} earlier approved send${n > 1 ? 's' : ''}` };
+  const history = n > 0 ? `; ${n} earlier approved send${n > 1 ? 's' : ''} on this chain, but history alone never clears a payee (an allow-list entry or a human approval that was removed stays removed)` : '';
   // 2026-11-07 (the track prompt's 'age and activity' signal): what the chain shows about an unknown payee goes into the reason.
   // Account AGE is not readable from public data on Robinhood Chain (its public RPC keeps no historical state and there is no
   // public explorer API), so the gate reports activity only: transactions sent (nonce), code or not, and the balance.
@@ -106,7 +109,8 @@ export function judgeCounterparty(c, policy, prior, facts = {}) {
     seen = facts.nonce === 0 && facts.codeHash === null ? '; fresh address (0 txs, no code)'
       : `; on chain: ${facts.nonce} tx${facts.nonce === 1 ? '' : 's'} sent, ${facts.codeHash ? 'a contract' : 'no code'}${facts.balanceWei !== undefined ? `, balance ${(Number(BigInt(facts.balanceWei)) / 1e18).toPrecision(3)} native` : ''}${facts.nonce <= 1 && !facts.codeHash ? ' (barely used)' : ''}`;
   } else if (facts.error) seen = `; on-chain facts unreadable (${facts.error})`;
-  return { ...out, verdict: 'warn', why: `unknown counterparty: not allow-listed, not from a trusted API, never approved${seen} ⇒ ask a human`,
+  return { ...out, verdict: 'warn', why: `${n > 0 ? 'not cleared by the published policy' : 'unknown counterparty'}: not allow-listed, not from a trusted API, ${n > 0 ? 'no human approval' : 'never approved'}${seen}${history} ⇒ ask a human`,
+    ...(n > 0 ? { priorSends: n } : {}),
     ...(Number.isInteger(facts.nonce) ? { activity: { txsSent: facts.nonce, contract: !!facts.codeHash, ...(facts.balanceWei !== undefined ? { balanceWei: facts.balanceWei } : {}) } } : {}) };
 }
 
@@ -260,6 +264,28 @@ export const GATED_SENDS = [
   { engine: 'sleeve', action: 'sleeve_buy', what: /^sleeve buy /, tool: 'sleeve/buy.mjs, sleeve/eleos.mjs' },
 ];
 export const GATE_LIVE_SINCE = '2026-11-05T18:12:53.902Z';   // the first gate record (seq 3394)
+// 2026-11-08 (screen 6 B-2): the agent's actions that move value or grant a right WITHOUT calling the gate, and why. The README's
+// Current numbers count them since the gate went live (ungatedSince), so the list cannot silently fall behind the records.
+export const UNGATED_KINDS = [
+  { engine: 'sleeve', action: 'sleeve_sell', why: "coin sells (exits and stop-losses): the value comes back to the agent's wallet, and an exit must not wait on NEAR or an RPC" },
+  { engine: 'offer', action: 'approve_nft_conduit', why: "approval of one of the agent's own NFT collections to OpenSea's conduit, so a listing can be filled (the conduit can move that collection's NFTs)" },
+  { engine: 'offer', action: 'list_nft', why: 'signed listings of its own NFTs: no transaction until a buyer fills one' },
+  { engine: 'freecall', action: 'free_mint', why: 'free mints (value hard-coded 0, gas only)' },
+  { engine: 'flock', action: 'flock_reinvest', why: 'the reinvest crank: pays gas, earns a bounty, sends no value' },
+  { engine: 'nearanchor', action: 'socialdb_storage_deposit', why: "NEAR storage for the agent's own SocialDB anchors" },
+  { engine: 'nearanchor', action: 'registry_storage_deposit', why: "NEAR storage for the agent's own registry anchors" },
+];
+/** rows: records or ledger rows → [{engine, action, why, n}] counted since `since` (only kinds that occurred). Pure. */
+export function ungatedSince(rows, since = GATE_LIVE_SINCE) {
+  const t0 = Date.parse(since), n = new Map();
+  for (const x of rows) {
+    const r = x?.row ?? x;
+    if (r?.type !== 'live' || !(Date.parse(r.t) >= t0)) continue;
+    const k = UNGATED_KINDS.find((u) => u.engine === r.engine && u.action === r.action);
+    if (k) n.set(k, (n.get(k) ?? 0) + 1);
+  }
+  return [...n].map(([k, c]) => ({ ...k, n: c }));
+}
 
 /** rows: records or raw ledger rows. → {since, sends, covered, bypassed, missing: [{seq, t, action}]}. Pure. */
 export function gateCoverage(rows, { since = GATE_LIVE_SINCE, windowMin = 15 } = {}) {

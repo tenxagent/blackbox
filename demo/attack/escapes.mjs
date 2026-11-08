@@ -52,8 +52,7 @@ export const ESCAPES = [
     extraRows: (now) => [{ t: new Date(now - H).toISOString(), engine: 'gate', type: 'gate', action: 'gate_refuse', pendingUsd: 1, to: [PAYEE], counterparties: [{ address: PAYEE, chain: 'robinhood' }] },
       { t: new Date(now + H).toISOString(), engine: 'gate', type: 'gate', action: 'gate_allow', pendingUsd: 1, to: [PAYEE], counterparties: [{ address: PAYEE, chain: 'robinhood' }] }], expect: 'gate_warn' },
   { id: 15, attempt: 'forge an earlier APPROVAL naming the payee into the ledger', to: [{ address: PAYEE, role: 'recipient' }], usd: 1,
-    extraRows: (now) => [{ t: new Date(now - H).toISOString(), engine: 'gate', type: 'gate', action: 'gate_allow', pendingUsd: 1, to: [PAYEE], counterparties: [{ address: PAYEE, chain: 'robinhood' }] }], expect: 'gate_allow',
-    stopped: false, shows: "needs write access to the agent's ledger (the same boundary as editing its code); the forged row is exported and anchored like any record, so it is public within one cycle, but nothing marks it as forged" },
+    extraRows: (now) => [{ t: new Date(now - H).toISOString(), engine: 'gate', type: 'gate', action: 'gate_allow', pendingUsd: 1, to: [PAYEE], counterparties: [{ address: PAYEE, chain: 'robinhood' }] }], expect: 'gate_warn' },   // refused since 2026-11-08: history alone never clears a payee
   { id: 16, attempt: "the agent's code reports Relay and itself as recipient, but the tx pays the attacker", to: [{ address: RELAY, role: 'spender', recipient: SELF }], facts: READ, usd: 1,
     txs: [transfer(USDG, PAYEE, 1_000_000)], expect: 'gate_refuse' },
   // screen 4 (2026-11-06) found these; the gate was hardened for B, C, F, H, I and D-unpublished, the rest are stated as open
@@ -88,9 +87,15 @@ export const ESCAPES = [
   // 2026-11-07: the native coin is counted at the published ceiling (gate.policy.json priceCeilings), not at the caller's figure
   { id: 33, attempt: '#27 with the native coin: send 0.012 ETH into Relay, declare $0.01', to: [{ address: RELAY, role: 'spender', recipient: SELF }], facts: READ, usd: 0.01,
     txs: [tx(RELAY, RELAY_CALL.data, '0x' + (12n * 10n ** 15n).toString(16))], expect: 'gate_refuse' },
+  // 2026-11-08 (screen 6 B-1): revocation. The policy owner removes an entry; earlier approved sends must not keep the payee cleared
+  { id: 34, attempt: "Relay's entry is removed from the policy (say after its code changed), and the attacker reuses Relay's earlier approved sends, with new code and itself as recipient",
+    to: [{ address: RELAY, role: 'spender', recipient: PAYEE }], facts: { [`robinhood:${RELAY}`]: { codeHash: '0x' + '66'.repeat(32), nonce: 1 } }, usd: 1,
+    policyEdit: (p) => ({ ...p, allow: (p.allow ?? []).filter((e) => e.address.toLowerCase() !== RELAY) }), expect: 'gate_warn' },
+  { id: 35, attempt: 'a human approval is withdrawn after one approved send, and the payee is paid again', to: [{ address: PAYEE, role: 'recipient' }], usd: 1,
+    extraRows: (now) => [{ t: new Date(now - H).toISOString(), engine: 'gate', type: 'gate', action: 'gate_allow', pendingUsd: 1, to: [PAYEE], counterparties: [{ address: PAYEE, chain: 'robinhood', verdict: 'allow', via: 'human', why: 'approved by a human: someone, 2026-11-06' }] }], expect: 'gate_warn' },
 ];
 // not an evaluate() call: running the caller with --no-gate. Listed so the table is complete.
-export const BYPASS = { id: 34, attempt: 'run the money tool with --no-gate', stopped: false, shows: 'not checked by design, but the caller records a gate_bypass row, which is exported and anchored (public); since 2026-11-06 a bypass also skips the pre-send anchor, so the send is flagged within one cycle (not_anchored_before_send)' };
+export const BYPASS = { id: 36, attempt: 'run the money tool with --no-gate', stopped: false, shows: 'not checked by design, but the caller records a gate_bypass row, which is exported and anchored (public); since 2026-11-06 a bypass also skips the pre-send anchor, so the send is flagged within one cycle (not_anchored_before_send)' };
 
 export function runEscapes() {
   const policy = readPolicy(), demoBlock = JSON.parse(readFileSync(HERE('blocklist.json'), 'utf8')).block;
@@ -100,6 +105,7 @@ export function runEscapes() {
     const anchor = e.anchorError ? { error: e.anchorError } : e.anchorAgeH ? { timeMs: nowMs - e.anchorAgeH * H } : fresh;
     let pol = e.blocklist ? { ...policy, block: demoBlock } : policy;
     if (e.human) pol = { ...pol, humanApproved: [{ chain: 'robinhood', address: PAYEE, by: 'someone with push access', at: '2026-11-06' }] };
+    if (e.policyEdit) pol = e.policyEdit(pol);
     const r = evaluate({ rows: [...history, ...(e.extraRows?.(nowMs) ?? [])], anchor, policy: pol, published: e.published, shared: PINNED_SHARED,
       pendingUsd: e.usd, nowMs, to: e.to.map((c) => ('chain' in c ? c : { chain: 'robinhood', ...c })), facts: e.facts ?? {}, txs: e.txs });
     return { ...e, action: r.action, reasons: r.reasons, why: r.reasons[0] ?? r.counterparties.map((c) => c.why).join('; ') };
