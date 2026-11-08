@@ -4,7 +4,7 @@
  "agentWallet": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
  "explorerTx": "https://robinhoodchain.blockscout.com/tx/",
  "counts": {
-  "verified": 138,
+  "verified": 145,
   "not_on_rh": 9
  },
  "results": [
@@ -1871,6 +1871,97 @@
    "status": 1,
    "block": 108571986,
    "blockTime": "2026-11-07T17:15:14.000Z",
+   "lagSec": 5,
+   "to": "0x8f3ea5d1333971f38026e04747d985748385f645"
+  },
+  {
+   "seq": 4195,
+   "tx": "0x59cc63aab7c97ef9954595d615229e1ca67ada81645aba7bbf545dab51c01ff4",
+   "chain": null,
+   "what": "flock_reinvest",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 108817917,
+   "blockTime": "2026-11-08T00:26:05.000Z",
+   "lagSec": 1,
+   "to": "0x8f3ea5d1333971f38026e04747d985748385f645"
+  },
+  {
+   "seq": 4214,
+   "tx": "0xc606757680ee513f0679eaac44ec83984b8e051a00d5fa10b93709786c758338",
+   "chain": null,
+   "what": "flock_reinvest",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 108865941,
+   "blockTime": "2026-11-08T01:51:14.000Z",
+   "lagSec": 5,
+   "to": "0x8f3ea5d1333971f38026e04747d985748385f645"
+  },
+  {
+   "seq": 4222,
+   "tx": "0x374060ce9a1064f7a31877ee6074babb5f46ea98c06d64af24664dd45744ef25",
+   "chain": null,
+   "what": "flock_reinvest",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 108885951,
+   "blockTime": "2026-11-08T02:26:22.000Z",
+   "lagSec": 5,
+   "to": "0x8f3ea5d1333971f38026e04747d985748385f645"
+  },
+  {
+   "seq": 4230,
+   "tx": "0x223cdc4cf5a4b840a277fa787cf0e1df8b4b10ae0bb0a2bb7c0e4bc177d07402",
+   "chain": null,
+   "what": "flock_reinvest",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 108906180,
+   "blockTime": "2026-11-08T03:01:31.000Z",
+   "lagSec": 5,
+   "to": "0x8f3ea5d1333971f38026e04747d985748385f645"
+  },
+  {
+   "seq": 4254,
+   "tx": "0x37347104592cbf880210744767dc35890c35cdc06d0822f87f37816475335773",
+   "chain": null,
+   "what": "flock_reinvest",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 108955070,
+   "blockTime": "2026-11-08T04:26:42.000Z",
+   "lagSec": 5,
+   "to": "0x8f3ea5d1333971f38026e04747d985748385f645"
+  },
+  {
+   "seq": 4262,
+   "tx": "0x8ef91e1c56e429d89607353d0a48626f7b8e4a6c51277698bfeb992d402391de",
+   "chain": null,
+   "what": "flock_reinvest",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 108975492,
+   "blockTime": "2026-11-08T05:01:50.000Z",
+   "lagSec": 5,
+   "to": "0x8f3ea5d1333971f38026e04747d985748385f645"
+  },
+  {
+   "seq": 4268,
+   "tx": "0x04ae1949d29aa39b01f6ad57810014ce9c5acd536676bb928e3831abae40a578",
+   "chain": null,
+   "what": "flock_reinvest",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 108990007,
+   "blockTime": "2026-11-08T05:26:57.000Z",
    "lagSec": 5,
    "to": "0x8f3ea5d1333971f38026e04747d985748385f645"
   }
