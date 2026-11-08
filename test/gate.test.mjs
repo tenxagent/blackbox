@@ -209,7 +209,7 @@ export const tests = [
       assert.equal(used.verdict, 'warn'); assert.match(used.why, /on chain: 1 tx sent, no code, balance 0\.00200 native \(barely used\)/);
       assert.deepEqual(used.activity, { txsSent: 1, contract: false, balanceWei: '2000000000000000' });
       const busy = judgeCounterparty({ address: NEW, chain: 'robinhood' }, P, new Map(), { nonce: 812, codeHash: HASH });
-      assert.match(busy.why, /on chain: 812 txs sent, a contract/); assert.doesNotMatch(busy.why, /barely used/);
+      assert.match(busy.why, /on chain: a contract, nonce 812 \(for a contract the nonce counts the contracts it created/); assert.doesNotMatch(busy.why, /barely used/);
       const blind = judgeCounterparty({ address: NEW, chain: 'robinhood' }, P, new Map(), { error: 'timeout' });
       assert.equal(blind.verdict, 'warn'); assert.match(blind.why, /on-chain facts unreadable \(timeout\)/); assert.equal(blind.activity, undefined);
       // an allow-listed or prior-approved payee is not touched by these facts

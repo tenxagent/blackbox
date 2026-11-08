@@ -53,7 +53,7 @@ export function anchorState(s, aheadAnchors = [], now = Date.now()) {
   const age = (h) => (h < 1 ? `${Math.max(0, Math.round(h * 60))} min` : `${h.toFixed(1)} h`);
   const info = s.ahead.seqs.map((seq) => {
     const a = aheadAnchors.find((x) => x.seq === seq) ?? {};
-    return { seq, ageH: a.time ? (now - Date.parse(a.time)) / 3.6e6 : null, pinned: a.pinned !== false };   // unknown target counts as pinned
+    return { seq, ageH: a.time ? (now - Date.parse(a.time)) / 3.6e6 : null, pinned: a.pinned === true };   // screen 6 (B-11c): an unknown target (SocialDB history keeps no records_url) gets the 9 h rule, amber first, not the 1 h pinned rule
   });
   const unknown = info.filter((x) => x.ageH == null || !Number.isFinite(x.ageH));
   if (unknown.length) return { state: 'bad', text: `head(s) at seq ${list(unknown)} are beyond these records (they end at seq ${end}) and when they were anchored could not be read` };

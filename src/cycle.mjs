@@ -93,7 +93,19 @@ if (process.env.BLACKBOX_REGISTRY_KEY_FILE) {
   const errOf = (r) => { const t = String(r.stderr || r.stdout || r.error || '').trim().split('\n'); return (t.find((l) => /Error|refus|fail/i.test(l)) ?? t.pop() ?? '').slice(0, 300); };
   let r = once(), line = okLine(r);
   if (!line) { console.log(`registry anchor attempt 1 failed: ${errOf(r)}; retrying in 15 s`); spawnSync('sleep', ['15']); r = once(); line = okLine(r); }
-  registry = line ? JSON.parse(line) : { ok: false, err: errOf(r) };
-  console.log(line || `registry anchor FAILED: ${registry.err}`);
+  // screen 6 (B-11b): attempt 1 may have landed without printing its ok line; the retry is then refused by the contract
+  // ("seq must be greater than the last anchored seq"). Read the registry itself: if its newest anchor is this seq and head,
+  // the anchor landed and the cycle says so instead of logging a false FAILED.
+  let landed = false;
+  if (!line) {
+    try {
+      const [{ readAllAnchors }, rpcNear, { REGISTRY, AGENT_NEAR_ACCOUNT }] = await Promise.all([import('./registry.mjs'), import('./near/rpc.mjs'), import('./gate-core.mjs')]);
+      const all = await readAllAnchors((m, a) => rpcNear.callFunction(rpcNear.rpcUrl('mainnet'), REGISTRY, m, a), JSON.parse(key).account_id || AGENT_NEAR_ACCOUNT);
+      const top = all.at(-1);
+      landed = !!top && top.seq === fin.seq && top.head === String(fin.head).toLowerCase().replace(/^0x/, '');
+    } catch (e) { console.log(`registry read-back failed: ${String(e.message ?? e).slice(0, 160)}`); }
+  }
+  registry = line ? JSON.parse(line) : landed ? { ok: true, near_tx: null, note: 'landed (read back from the registry after the retry was refused)' } : { ok: false, err: errOf(r) };
+  console.log(line || (landed ? `registry anchor OK: seq ${fin.seq} is the registry's newest anchor (read back; attempt output: ${errOf(r)})` : `registry anchor FAILED: ${registry.err}`));
 }
 console.log(JSON.stringify({ ok: true, seq: fin.seq, head: fin.head, commit: sha, near_tx: sent[1], account, ...(registry ? { registry: { ok: registry.ok, near_tx: registry.near_tx } } : {}) }));

@@ -102,12 +102,12 @@ export function judgeCounterparty(c, policy, prior, facts = {}) {
   const n = prior.get(key(c.chain, addr)) ?? 0;
   const history = n > 0 ? `; ${n} earlier approved send${n > 1 ? 's' : ''} on this chain, but history alone never clears a payee (an allow-list entry or a human approval that was removed stays removed)` : '';
   // 2026-11-07 (the track prompt's 'age and activity' signal): what the chain shows about an unknown payee goes into the reason.
-  // Account AGE is not readable from public data on Robinhood Chain (its public RPC keeps no historical state and there is no
-  // public explorer API), so the gate reports activity only: transactions sent (nonce), code or not, and the balance.
+  // Account AGE is not readable from public data on Robinhood Chain (its public RPC keeps no historical state and its Blockscout
+  // API answered 403 behind a browser challenge), so the gate reports activity only: transactions sent (nonce), code or not, and the balance.
   let seen = '';
   if (Number.isInteger(facts.nonce)) {
     seen = facts.nonce === 0 && facts.codeHash === null ? '; fresh address (0 txs, no code)'
-      : `; on chain: ${facts.nonce} tx${facts.nonce === 1 ? '' : 's'} sent, ${facts.codeHash ? 'a contract' : 'no code'}${facts.balanceWei !== undefined ? `, balance ${(Number(BigInt(facts.balanceWei)) / 1e18).toPrecision(3)} native` : ''}${facts.nonce <= 1 && !facts.codeHash ? ' (barely used)' : ''}`;
+      : `; on chain: ${facts.codeHash ? `a contract, nonce ${facts.nonce} (for a contract the nonce counts the contracts it created, not its use)` : `${facts.nonce} tx${facts.nonce === 1 ? '' : 's'} sent, no code`}${facts.balanceWei !== undefined ? `, balance ${(Number(BigInt(facts.balanceWei)) / 1e18).toPrecision(3)} native` : ''}${facts.nonce <= 1 && !facts.codeHash ? ' (barely used)' : ''}`;
   } else if (facts.error) seen = `; on-chain facts unreadable (${facts.error})`;
   return { ...out, verdict: 'warn', why: `${n > 0 ? 'not cleared by the published policy' : 'unknown counterparty'}: not allow-listed, not from a trusted API, ${n > 0 ? 'no human approval' : 'never approved'}${seen}${history} ⇒ ask a human`,
     ...(n > 0 ? { priorSends: n } : {}),

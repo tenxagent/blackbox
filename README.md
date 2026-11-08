@@ -10,7 +10,8 @@ Right before its swap, coin-buy and NEAR-funding tools sign, a pre-sign gate ([`
 allow, warn or block with reasons. It judges against a public policy ([`gate.policy.json`](gate.policy.json)) and the
 unsigned transactions themselves. Every decision, each refusal included, goes into a SHA-256 hash chain whose heads sit
 in an **append-only registry on NEAR mainnet that has no access keys**. Since 2026-11-06 each allowed send's decision is
-on NEAR **before** the send is signed.
+on NEAR **before** the send is signed (the agent's wrapper enforces that order; publicly, anyone can check that the decision
+was on NEAR before the send's block: the NEAR registry's clock against the chain's block time, `node src/flows.mjs`, section "Anchored before it is signed").
 
 - **A real refusal in the real log.** A phishing message got the live agent to ask for its whole USDG balance to go to
   `0x…dEaD`. The gate refused it (`gate_warn`, record 3463), and that record is anchored, so editing it now fails

@@ -28,7 +28,9 @@ export const tests = [
       assert.equal(anchorState(ahead, [{ seq: n + 7, time: ago(0.2), pinned: true }], now).state, 'ahead');   // deploy lag: minutes
       const dropped = anchorState(ahead, [{ seq: n + 7, time: ago(PINNED_GRACE_H + 0.1), pinned: true }], now);
       assert.equal(dropped.state, 'bad'); assert.match(dropped.text, /published records are missing/);
-      assert.equal(anchorState(ahead, [{ seq: n + 7, time: ago(0.2), pinned: null }], now).state, 'ahead');   // unknown target = pinned rule
+      assert.equal(anchorState(ahead, [{ seq: n + 7, time: ago(0.2), pinned: null }], now).state, 'ahead');
+      assert.equal(anchorState(ahead, [{ seq: n + 7, time: ago(PINNED_GRACE_H + 1), pinned: null }], now).state, 'ahead');   // unknown target: amber past the 1 h pinned grace
+      assert.equal(anchorState(ahead, [{ seq: n + 7, time: ago(AHEAD_MAX_H + 0.5), pinned: null }], now).state, 'bad');      // … and red after the 9 h rule
       assert.equal(anchorState(ahead, [], now).state, 'bad');                                              // age unknown: red
       const wrong = await verifySparse(lines, [{ seq: n, head: 'cd'.repeat(32) }], { agentId: cp.agentId });
       assert.deepEqual(anchorState(wrong, [], now), { state: 'bad' });                                       // differs inside the records: red
