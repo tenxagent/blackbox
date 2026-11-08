@@ -7,12 +7,12 @@
   "every": 256,
   "hourly": true
  },
- "records": 4389,
- "recordsSha256": "bba774299a79c945ee028216d5d0bc5f19bf94f8cd43c1e2dd33a26b12e194eb",
+ "records": 4496,
+ "recordsSha256": "d03a397a9817adbdbac7a13181595ee7d51793d488eb65dc18826747903dc221",
  "final": {
-  "seq": 4389,
-  "t": "2026-11-08T14:30:44.543Z",
-  "head": "6b1a007fa6c40a7503895d50beb0825813134a64ee233ca2daa27537dbdd1411"
+  "seq": 4496,
+  "t": "2026-11-08T22:27:11.512Z",
+  "head": "82dd7828dea418701e42cd9894c07b40d1b5c3343dd73491846c0b9d96c7bc01"
  },
  "checkpoints": [
   {
@@ -1981,6 +1981,54 @@
    "seq": 4382,
    "t": "2026-11-08T13:55:40.088Z",
    "head": "644f268e819f204b6521b163ff0c672936ae748f7316d94ec6da1ece36a31ce0",
+   "why": "hour"
+  },
+  {
+   "seq": 4396,
+   "t": "2026-11-08T14:55:48.033Z",
+   "head": "ef2d218a608eb3d6e27545dd09c6f912576528d3130aed3e7c267fdb7d49b06b",
+   "why": "hour"
+  },
+  {
+   "seq": 4411,
+   "t": "2026-11-08T15:56:01.464Z",
+   "head": "681a41d1667b022dfa72b97615b40f27722c446030e8a8ed7b2a065c9bd88828",
+   "why": "hour"
+  },
+  {
+   "seq": 4425,
+   "t": "2026-11-08T16:56:14.364Z",
+   "head": "d63687cb51aecfeeca7ab992a1b01cebbee103e69d17d87b5f7322f7190d08ca",
+   "why": "hour"
+  },
+  {
+   "seq": 4437,
+   "t": "2026-11-08T17:56:22.065Z",
+   "head": "096926460b2d5f5bf877f87d4599f3bed74161deca0cb1f8b42140d5ea0b2c5f",
+   "why": "hour"
+  },
+  {
+   "seq": 4449,
+   "t": "2026-11-08T18:56:30.166Z",
+   "head": "f5bdb504421c86fe3e08b9d0ffbee89bcdea04bbfda998e5c343a535135a79cb",
+   "why": "hour"
+  },
+  {
+   "seq": 4461,
+   "t": "2026-11-08T19:56:39.337Z",
+   "head": "f8c9f44dc1caa5041ea5ea984240c8a0211062769a942c4c9f7cc82997ebc2dc",
+   "why": "hour"
+  },
+  {
+   "seq": 4474,
+   "t": "2026-11-08T20:56:53.622Z",
+   "head": "b08b3e6a7fdf35dc106cace633b2cae2bdb73cc590146cbb18ee7c3856540910",
+   "why": "hour"
+  },
+  {
+   "seq": 4490,
+   "t": "2026-11-08T21:57:07.610Z",
+   "head": "d6aeece45e355e24a18f3da40fd82d56bec0bc7f24b1c7cf4d756c58f6e5bfd7",
    "why": "hour"
   }
  ]
