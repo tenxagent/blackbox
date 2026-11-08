@@ -518,14 +518,22 @@ async function main() {
   });
   if (!account) setStatus('near-status', 'idle', 'No NEAR account set. Enter the account that anchors the head (or add ?network=mainnet&account=<id> to the URL).');
 
+  // screen 6 (11-09): simulations are ~90% of the records and buried the real decisions, so the list shows the newest 50
+  // non-simulation decisions and folds the simulations of the same span under a toggle
   function renderList(lines) {
-    const list = document.getElementById('decisions');
-    list.replaceChildren();
-    const recs = [];
+    const list = document.getElementById('decisions'), simList = document.getElementById('decisions-sim');
+    list.replaceChildren(); simList?.replaceChildren();
+    const recs = [], sims = [];
+    let oldest = null;
     for (let i = lines.length - 1; i >= 0 && recs.length < 50; i--) {
-      try { recs.push(JSON.parse(lines[i])); } catch { /* reported above */ }
+      let r; try { r = JSON.parse(lines[i]); } catch { continue; /* reported above */ }
+      if (r.cat === 'sim') sims.push(r); else recs.push(r);
+      oldest = r.seq;
     }
-    for (const rec of recs) {
+    const fold = document.getElementById('sims-fold');
+    if (fold) { fold.hidden = !sims.length; document.getElementById('sims-count').textContent = `${sims.length} simulation${sims.length === 1 ? '' : 's'} in the same span (#${oldest} onward), hidden: show them`; }
+    for (const rec of [...recs, ...sims]) {
+      const target = rec.cat === 'sim' && simList ? simList : list;
       const li = el('li', { class: `cat-${rec.cat}` });
       li.append(el('span', { class: 'seq' }, `#${rec.seq}`), el('span', { class: 'when' }, String(rec.row?.t ?? '').replace('T', ' ').slice(0, 19)), el('span', { class: 'cat' }, rec.cat));
       const body = el('div', { class: 'what' }, describe(rec));
@@ -538,7 +546,7 @@ async function main() {
         else body.append(el('a', { class: 'tx', href: RH_EXPLORER_TX + tx, target: '_blank', rel: 'noopener noreferrer' }, `tx ${short(tx, 8)}`), el('span', { class: 'ok' }, tag));
       }
       li.append(body);
-      list.append(li);
+      target.append(li);
     }
   }
 }

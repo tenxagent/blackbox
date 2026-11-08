@@ -68,7 +68,7 @@
 <body>
 <main>
   <h1>Black box verifier</h1>
-  <p class="sub">Recomputes the hash chain over an AI agent's decision records in your browser and compares it with the head anchored on NEAR.</p>
+  <p class="sub">Recomputes the hash chain over an AI agent's decision records in your browser and compares it with the head anchored on NEAR. <a href="#try-the-gate">Try the agent's pre-sign gate on a payee of your choice (section 7)</a>.</p>
 
   <dl>
     <dt>agent</dt><dd class="mono" id="agent-id">…</dd>
@@ -103,10 +103,11 @@
   <ol id="flows"></ol>
 
   <h2>6. Last 50 decisions</h2>
-  <p class="sub">Newest first. Transaction links open the Robinhood Chain explorer; ✓ means <code>node src/rh-proof.mjs --all</code> found the receipt and it was sent from the agent wallet.</p>
+  <p class="sub">Newest first, simulations folded below the list. Transaction links open the Robinhood Chain explorer; ✓ means <code>node src/rh-proof.mjs --all</code> found the receipt and it was sent from the agent wallet.</p>
   <ol id="decisions"></ol>
+  <details id="sims-fold" hidden><summary id="sims-count">simulations hidden</summary><ol id="decisions-sim"></ol></details>
 
-  <h2>7. Try the gate</h2>
+  <h2 id="try-the-gate">7. Try the gate</h2>
   <p class="sub">The agent's own pre-sign decision (<code>src/gate-core.mjs</code>), run in your browser on the published policy, these records, the newest registry anchor, the shared blocklist and the payee's code read from its chain. It judges the description only: the agent's wrapper also shows it the unsigned transactions.</p>
   <p id="gate-examples">Try: </p>
   <form id="gate-form">
