@@ -26,7 +26,7 @@ export function block({ records, verifyHeads, verifyCk, tests, proof, coverage, 
     `- Step 1: ${total ?? '?'} tests. A judge sees \`${total ? total - 1 : '?'} passed, 0 failed, 1 skipped\`: the one SKIP is the operator check that needs the private ledger.`,
     `- Step 2: \`${verifyHeads}\` and \`${verifyCk}\`.`,
     `- Steps 6 and 8: \`chain OK up to seq ${records} of ${records}\`; the newest head in \`data/checkpoints.json\` is seq ${final.seq}, \`${final.head.slice(0, 8)}…${final.head.slice(-4)}\` (each cycle anchors it on NEAR right after the data commit; this line is read from the local file, so step 8 and step 10 are what show NEAR holds the same head).`,
-    `- Step 4: \`--all\` checks ${proof.total} tx records: ${Object.entries(proof.counts).map(([k, v]) => `${k}: ${v}`).join(' · ')}.`,
+    `- Step 4: \`--all\` checks ${proof.total} tx records: ${Object.entries(proof.counts).map(([k, v]) => `${k}: ${v}`).join(' · ')}.${(() => { const off = {}; for (const r of proof.results ?? []) if (r.result === 'not_on_rh') off[r.chain ?? 'unknown'] = (off[r.chain ?? 'unknown'] ?? 0) + 1; const e = Object.entries(off).sort((a, b) => b[1] - a[1]); return e.length ? ` The not_on_rh records are on other chains (${e.map(([k, v]) => `${k} ${v}`).join(', ')}), which \`rh-proof\` does not check.` : ''; })()}`,
     coverage ? `- Coverage (\`node src/coverage.mjs\`): the wallet had sent ${coverage.total} transactions; ${coverage.explainedTx} match a record's own tx hash, ${coverage.explainedBatch} fall inside recorded mint/crank batches, ${coverage.unexplained} are not accounted for (see Limits).` : null,
     gateCov ? `- Gate coverage (\`node src/gate.mjs coverage\`): since the gate went live (${gateCov.since}), ${gateCov.sends} gated send${gateCov.sends === 1 ? '' : 's'} in the records; ${gateCov.covered} had a \`gate_allow\` just before ${gateCov.sends === 1 ? 'it' : 'them'}, ${gateCov.bypassed} a recorded bypass, ${gateCov.missing.length} none.` : null,
     ungated ? `- Not gated, by design (Limits says why): since the gate went live, ${ungated.length ? ungated.map((u) => `\`${u.action}\` ×${u.n}`).join(', ') : 'none'}, besides the mint and crank race batches.` : null,
@@ -43,7 +43,7 @@ function main() {
   const verifyHeads = lines.find((l) => l.startsWith('heads.txt:')) ?? 'heads.txt: ?';
   const verifyCk = lines.find((l) => l.startsWith('checkpoints.json:')) ?? 'checkpoints.json: ?';
   const proofJ = JSON.parse(rd('data/rh-proof.json'));
-  const proof = { total: proofJ.results.length, counts: proofJ.counts };
+  const proof = { total: proofJ.results.length, counts: proofJ.counts, results: proofJ.results };
   let coverage = null; try { coverage = JSON.parse(rd('data/coverage.json')); } catch {}
   const final = JSON.parse(rd('data/checkpoints.json')).final;
   let tests = arg('tests');

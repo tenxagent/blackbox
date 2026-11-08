@@ -39,10 +39,10 @@ above; every time in it is read from the records, the registry and the chain's b
 | The security track's example prompt asks for | Black box | Do this / see this |
 |---|---|---|
 | A counterparty check that returns allow, warn or block with reasons | **yes** | `src/gate.mjs` rule 3 against the public `gate.policy.json`. Judge step 11 runs `node src/gate.mjs check …` and prints the verdict with its reason. |
-| Signals: account age and activity, contract or not and code changes, prior interactions | **partial** | **Prior interactions:** reported in the reason, per chain; since 2026-11-08 they never clear a payee on their own, so removing an allow-list entry or a human approval revokes it. **Code:** an allow-listed contract's code hash is read from the chain (`eth_getProof`) and must equal the pinned hash, else warn. **Activity:** an unknown payee's warn says what the chain shows (transactions sent, code or not, balance; "fresh" or "barely used" flagged). **Account age:** not used. Robinhood Chain's public RPC keeps no historical state and there is no public explorer API, so age is not readable from public data. |
+| Signals: account age and activity, contract or not and code changes, prior interactions | **partial** | **Prior interactions:** reported in the reason, per chain; since 2026-11-08 they never clear a payee on their own, so removing an allow-list entry or a human approval revokes it. **Code:** an allow-listed contract's code hash is read from the chain (`eth_getProof`) and must equal the pinned hash, else warn. **Activity:** an unknown payee's warn says what the chain shows (transactions sent, code or not, balance; "fresh" or "barely used" flagged). **Account age:** not used. Robinhood Chain's public RPC keeps no historical state, and its Blockscout explorer's API (robinhoodchain.blockscout.com) answered 403 behind a browser challenge when we tried it, so age is not readable from public data without a browser. |
 | A shared blocklist that other agents report to, with evidence | **yes** (one reporter today) | Any NEAR account reports a payee with its evidence under its own SocialDB key (`node src/blocklist.mjs report`). The gate counts the reporters its published policy trusts and refuses if their list cannot be read. `node src/blocklist.mjs read` lists them; the agent has reported the attack payee. |
 | An agent-side wrapper that refuses on block and asks a human on warn | **yes** | The agent's wrapper refuses every decision that is not allow. A warn becomes an allow only after a human approval is published in `humanApproved` (escape row 25). The wrapper also refuses a live send whose transactions it did not show. |
-| The agent signs with a function-call key scoped to one contract, with the limits explained | **partial** | On NEAR the anchors are signed with function-call keys: the registry's `anchor` (allowance 0.245 NEAR) and `social.near` `set` (0.235 NEAR); the full-access key only pays storage. Its money key is an EVM key on Robinhood Chain, which has no function-call keys, so the gate and anchor-before-send stand in for one. **Limits** says what that does not stop and why a NEAR-held signer was not built. |
+| The agent signs with a function-call key scoped to one contract, with the limits explained | **partial** | On NEAR the anchors are signed with function-call keys: the registry's `anchor` and `social.near` `set` (allowances about 0.24 and 0.23 NEAR, drifting with use: `node src/fckey.mjs --list`); the full-access key only pays storage. Its money key is an EVM key on Robinhood Chain, which has no function-call keys, so the gate and anchor-before-send stand in for one. **Limits** says what that does not stop and why a NEAR-held signer was not built. |
 | An attack demo: a prompt-injected agent tries to pay a known-bad address, is stopped, and the log is shown | **yes** | `node demo/attack/run.mjs`, the live refusal (record 3463, anchored), the 36-row escape table, and section 7 of the live page (try the gate yourself). |
 
 The agent logs its decisions to an append-only ledger. How many of the wallet's transactions the records account for is
@@ -247,9 +247,16 @@ injected payee, real policy: GATE_WARN
   rule 1 anchor 0.5 h old: ok · rule 2 $2 + $22.16 ≤ $30: ok (a cap alone would allow this)
   rule 3 WARN 0x000000000000000000000000000000000000dead (recipient (from a message)): unknown counterparty: not allow-listed, not from a trusted API, never approved ⇒ ask a human
 injected payee, demo blocklist: GATE_REFUSE
+  rule 1 anchor 0.5 h old: ok · rule 2 $2 + $22.16 ≤ $30: ok (a cap alone would allow this)
+  rule 3 BLOCK 0x000000000000000000000000000000000000dead (recipient (from a message)): blocklisted: the payee in a phishing message (demo/attack/message.txt): 'migrate' + 'send your FULL balance' + a deadline
 control: same amount to Relay: GATE_ALLOW
+  rule 1 anchor 0.5 h old: ok · rule 2 $2 + $22.16 ≤ $30: ok (a cap alone would allow this)
+  rule 3 ALLOW 0x5567954cd026cebfe486062cb75848e0f1c12e58 (approve spender): allow-listed: Relay approvalProxy (v3.2) on Robinhood Chain
+
 the log (agent export rules, demo agent id "blackbox-demo:attack"):
-  seq 1 cat gate gate_warn · seq 2 cat gate gate_refuse · seq 3 cat gate gate_allow
+  seq 1 cat gate gate_warn · head 48fb687c11e1b649…
+  seq 2 cat gate gate_refuse · head 74fbcee48459a70e…
+  seq 3 cat gate gate_allow · head 25f95d5f7ff00b36…
 verify: OK, all heads match
 edit seq 1 from gate_warn to gate_allow ⇒ verify: FAILS at seq 1 (head differs; record content changed)
 ```
@@ -368,7 +375,7 @@ and plain browser JavaScript. Run all commands from the repository root.
 - Step 1: 158 tests. A judge sees `157 passed, 0 failed, 1 skipped`: the one SKIP is the operator check that needs the private ledger.
 - Step 2: `heads.txt: OK, all 4496 heads match` and `checkpoints.json: OK through seq 4496 (338 claims)`.
 - Steps 6 and 8: `chain OK up to seq 4496 of 4496`; the newest head in `data/checkpoints.json` is seq 4496, `82dd7828…bc01` (each cycle anchors it on NEAR right after the data commit; this line is read from the local file, so step 8 and step 10 are what show NEAR holds the same head).
-- Step 4: `--all` checks 166 tx records: verified: 157 · not_on_rh: 9.
+- Step 4: `--all` checks 166 tx records: verified: 157 · not_on_rh: 9. The not_on_rh records are on other chains (bsc 4, elysium 4, hyperevm 1), which `rh-proof` does not check.
 - Coverage (`node src/coverage.mjs`): the wallet had sent 725 transactions; 151 match a record's own tx hash, 564 fall inside recorded mint/crank batches, 10 are not accounted for (see Limits).
 - Gate coverage (`node src/gate.mjs coverage`): since the gate went live (2026-11-05T18:12:53.902Z), 3 gated sends in the records; 3 had a `gate_allow` just before them, 0 a recorded bypass, 0 none.
 - Not gated, by design (Limits says why): since the gate went live, `registry_storage_deposit` ×2, `socialdb_storage_deposit` ×2, `sleeve_sell` ×1, `free_mint` ×1, `approve_nft_conduit` ×1, `list_nft` ×2, `flock_reinvest` ×24, besides the mint and crank race batches.
@@ -457,7 +464,8 @@ The internals, each with its source file, are in [docs/how-it-works.md](docs/how
   registry head and only then asks NEAR Chain Signatures to sign for an MPC-derived Robinhood Chain address) would move
   enforcement onto NEAR. It was not built in the hackathon window: it is new code that would move real money, and we
   chose to state the gap rather than ship a half-tested signer. On NEAR the anchors are signed with function-call
-  keys: `anchor` on the registry (allowance 0.245 NEAR) and `set` on `social.near` (0.235 NEAR). A separate full-access
+  keys: `anchor` on the registry and `set` on `social.near` (allowances about 0.24 and 0.23 NEAR, drifting with use;
+  `node src/fckey.mjs --list` prints them). A separate full-access
   key, kept in the operator's vault, pays storage top-ups, including one automatic rerun of an anchor when SocialDB
   storage runs out (a function-call key cannot attach a deposit).
 - **The shared blocklist is young.** It has one trusted reporter (the agent itself), so today it adds evidence-carrying
@@ -507,8 +515,8 @@ The internals, each with its source file, are in [docs/how-it-works.md](docs/how
 - **The RH proof covers money records with a tx hash only** (the step 4 count under **Current numbers**).
   - Off-chain decisions (OpenSea offers, refusals, simulations, paper trades) cannot be
     proven to have happened. They can only be proven unedited after anchoring.
-  - Eight records are on other chains and are not checked by `rh-proof`: four BNB Chain txs, one HyperEVM and three Elysium
-    (`not_on_rh` in `data/rh-proof.json`).
+  - Records on other chains (BNB Chain, HyperEVM, Elysium) are not checked by `rh-proof` (`not_on_rh` in
+    `data/rh-proof.json`; the count by chain is generated under **Current numbers**, step 4).
 - **The gate is a policy the agent's own code calls.** A stolen wallet key, or an operator who edits the calling code,
   bypasses it. A bypass made with `--no-gate` is recorded, but a bypass made by editing the code is not. Only the swap, coin-buy and NEAR-funding
   tools call it. It adds a NEAR read to every gated send, on purpose.
