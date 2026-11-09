@@ -90,7 +90,7 @@ if (process.env.BLACKBOX_REGISTRY_KEY_FILE) {
   const once = () => spawnSync('node', ['src/registry-cli.mjs', 'anchor', '--seq', String(fin.seq), '--records-url', `${REPO_RAW}/${sha}/data/records.jsonl`, '--send', '--i-understand-mainnet'],
     { cwd: ROOT, encoding: 'utf8', input: key, env: { ...process.env, BLACKBOX_NEAR_KEY_FILE: '-' }, timeout: 120_000 });
   const okLine = (r) => (r.stdout || '').split('\n').reverse().find((l) => l.includes('"action":"registry_anchor"') && l.includes('"ok":true'));
-  const errOf = (r) => { const t = String(r.stderr || r.stdout || r.error || '').trim().split('\n'); return (t.find((l) => /Error|refus|fail/i.test(l)) ?? t.pop() ?? '').slice(0, 300); };
+  const errOf = (r) => { const t = String(r.stderr || r.stdout || r.error || '').trim().split('\n'); return (t.find((l) => /^\s*\w*Error:/.test(l)) ?? t.find((l) => /refus|fail|panic/i.test(l)) ?? t.pop() ?? '').slice(0, 300); };   // the message line, not the `throw` source line node prints first
   let r = once(), line = okLine(r);
   if (!line) { console.log(`registry anchor attempt 1 failed: ${errOf(r)}; retrying in 15 s`); spawnSync('sleep', ['15']); r = once(); line = okLine(r); }
   // screen 6 (B-11b): attempt 1 may have landed without printing its ok line; the retry is then refused by the contract

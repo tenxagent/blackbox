@@ -109,7 +109,7 @@ if (isMain) {
         { cwd: ROOT, encoding: 'utf8', input: fs.readFileSync(process.env.BLACKBOX_REGISTRY_KEY_FILE, 'utf8'), env: { ...process.env, BLACKBOX_NEAR_KEY_FILE: '-' }, timeout: 120_000 });
       const okOf = (r) => { const line = (r.stdout || '').split('\n').reverse().find((l) => l.includes('"action":"registry_anchor"')); return line ? JSON.parse(line) : null; };
       // keep the thrown error's line, not node's trailing "Node.js vX" line (a crash printed only that, 03:19Z)
-      const errLine = (r) => { const t = String(r.stderr || r.stdout || r.error || '').trim().split('\n').filter((l) => l.trim() && !/^Node\.js v\d/.test(l.trim())); return (t.find((l) => /Error|refus|fail|panic|Exceeded|NotEnough/i.test(l)) ?? t.pop() ?? '').trim(); };
+      const errLine = (r) => { const t = String(r.stderr || r.stdout || r.error || '').trim().split('\n').filter((l) => l.trim() && !/^Node\.js v\d/.test(l.trim())); return (t.find((l) => /^\s*\w*Error:/.test(l)) ?? t.find((l) => /refus|fail|panic|Exceeded|NotEnough/i.test(l)) ?? t.pop() ?? '').trim(); };
       let r = once(), res = okOf(r);
       if (!res?.ok) {
         const first = res?.err ?? errLine(r);
