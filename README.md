@@ -205,6 +205,15 @@ Its `records_url` points at `main`, not at a commit, because those records are n
 records are missing (a dropped tail, or an out-of-date copy): amber for at most 1 hour (a Pages deploy can lag), then red. Once
 the records are there, a head that does not match is red at once.
 
+It has refused for real. On 2026-11-09 from 03:19 to 03:23Z the pre-send anchor for a GIGA sale failed three times in a row.
+The cause was that the agent's NEAR account could not prepay the gas of the SocialDB write and the registry write sent back
+to back (`NotEnoughBalance`; NEAR charges prepaid gas up front at the highest price and refunds the rest). All three sends
+were refused unsigned: records 4585, 4587 and 4589 are `anchor_before_send_failed`. Their `gate_allow` rows still count
+toward rule 2's $30. The fix used the account's own NEAR: it withdrew unused SocialDB storage deposit. The fourth try
+anchored (4593) before it signed (4594). `src/anchor-now.mjs` now checks the liquid balance first and refuses with a plain
+reason below 0.075 NEAR. It retries the registry write once, after reading back whether the first try landed. Its refusal
+names the RPC's error line, not the Node.js banner the first record shows.
+
 **The log shows whether the gate ran.** `node src/gate.mjs coverage` goes through the records: every money record of a
 gated tool (`relay_swap`, `giga_sell`, `near_fund_deposit`, `sleeve_buy`) written since the first gate record must have
 its own gate decision (`gate_allow`, or a recorded `gate_bypass`) of the same kind at most 15 minutes before it. One decision
