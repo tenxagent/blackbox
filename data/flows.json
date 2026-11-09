@@ -1,9 +1,9 @@
 {
- "at": "2026-11-09T06:34:49.409Z",
+ "at": "2026-11-09T14:35:17.105Z",
  "since": "2026-11-05T18:12:53.902Z",
  "wallet": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
- "sends": 5,
- "txs": 9,
+ "sends": 6,
+ "txs": 10,
  "findings": [],
  "results": [
   {
@@ -236,6 +236,48 @@
     }
    ],
    "usdOut": 3
+  },
+  {
+   "seq": 4673,
+   "t": "2026-11-09T07:18:00.605Z",
+   "action": "near_fund_deposit",
+   "chain": "robinhood",
+   "gateSeq": 4670,
+   "gateUsd": 2,
+   "txs": [
+    {
+     "tx": "0xe9dada3332c792d291da437053ea5dc4743e918c89b40e23910819deeb353169",
+     "result": "ok",
+     "flows": [
+      {
+       "kind": "transfer",
+       "token": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+       "to": "0x9a8d32968568fbae6d71bcd484fd7d7fea950616",
+       "amount": "2000000",
+       "usd": 2,
+       "label": "1Click deposit address from the record",
+       "ok": true,
+       "oneClick": {
+        "ok": true,
+        "why": null,
+        "status": "SUCCESS",
+        "recipient": "00537bf24e164c18f3512de1040d34c88a11f37976a3ef6d4de673dc9cef6590",
+        "refundTo": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+        "appFeeBps": 20,
+        "nearTx": [
+         "NQcfvmZKZbifdb54xyuQdNhArQPWtH1sgZ5o7ErrK4u"
+        ]
+       }
+      }
+     ],
+     "shownToGate": true,
+     "anchoredBefore": {
+      "seq": 4670,
+      "time": "2026-11-09T07:17:51.291Z"
+     }
+    }
+   ],
+   "usdOut": 2
   }
  ],
  "missingGate": []
