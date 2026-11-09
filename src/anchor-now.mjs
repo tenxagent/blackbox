@@ -96,6 +96,11 @@ if (isMain) {
     const before = (await readAllAnchors(view, account)).at(-1) ?? null;
     const plan = registryPlan(before, fin.seq, fin.head);
     if (plan !== 'write' && plan !== 'already') refuse(plan, base);
+    // 11-09: NEAR charges a tx's prepaid gas up front at a pessimistic price, so the SocialDB set (40 Tgas) and the registry anchor
+    // (30 Tgas) sent back to back need about 0.07 NEAR liquid at once, although each burns far less. Below that the registry send is
+    // rejected (NotEnoughBalance) after SocialDB was already written; refuse first, with the reason.
+    const acct = await rpc.viewAccount(url, account), liquid = Number(BigInt(acct.amount) - BigInt(acct.storage_usage) * 10n ** 19n) / 1e24;
+    if (liquid < 0.075) refuse(`NEAR balance too low to prepay the anchor gas: ${liquid.toFixed(4)} NEAR liquid, about 0.075 needed (top up the account, or withdraw unused SocialDB storage)`, base);
 
     const s = spawnSync(process.execPath, ['src/anchor.mjs', '--dir', tmp, '--network', 'mainnet', '--send', '--i-understand-mainnet', '--records-url', REPO_RAW_MAIN],
       { cwd: ROOT, encoding: 'utf8', input: key, env: { ...process.env, BLACKBOX_NEAR_KEY_FILE: '-' }, timeout: 180_000 });
