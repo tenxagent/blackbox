@@ -103,11 +103,21 @@ if (isMain) {
     if (sent[2] !== 'success') refuse(`SocialDB anchor not confirmed: ${(sent[2] ?? String(s.stderr || s.stdout).trim().split('\n').pop() ?? '').slice(0, 200)}`, base);
     let regTx = null;
     if (plan === 'write') {
-      const r = spawnSync(process.execPath, ['src/registry-cli.mjs', 'anchor', '--dir', tmp, '--records-url', REPO_RAW_MAIN, '--send', '--i-understand-mainnet'],
+      // 11-09: one retry, as in cycle.mjs. A send that throws (RPC transport/timeout, 03:19Z) may still land, so the registry is
+      // read back first; only if this seq is not there is the anchor sent again.
+      const once = () => spawnSync(process.execPath, ['src/registry-cli.mjs', 'anchor', '--dir', tmp, '--records-url', REPO_RAW_MAIN, '--send', '--i-understand-mainnet'],
         { cwd: ROOT, encoding: 'utf8', input: fs.readFileSync(process.env.BLACKBOX_REGISTRY_KEY_FILE, 'utf8'), env: { ...process.env, BLACKBOX_NEAR_KEY_FILE: '-' }, timeout: 120_000 });
-      const line = (r.stdout || '').split('\n').reverse().find((l) => l.includes('"action":"registry_anchor"'));
-      const res = line ? JSON.parse(line) : null;
-      if (!res?.ok) refuse(`registry anchor failed: ${(res?.err ?? String(r.stderr || r.stdout).trim().split('\n').pop() ?? '').slice(0, 200)}`, { ...base, socialdb_tx: sent[1] });
+      const okOf = (r) => { const line = (r.stdout || '').split('\n').reverse().find((l) => l.includes('"action":"registry_anchor"')); return line ? JSON.parse(line) : null; };
+      // keep the thrown error's line, not node's trailing "Node.js vX" line (a crash printed only that, 03:19Z)
+      const errLine = (r) => { const t = String(r.stderr || r.stdout || r.error || '').trim().split('\n').filter((l) => l.trim() && !/^Node\.js v\d/.test(l.trim())); return (t.find((l) => /Error|refus|fail|panic|Exceeded|NotEnough/i.test(l)) ?? t.pop() ?? '').trim(); };
+      let r = once(), res = okOf(r);
+      if (!res?.ok) {
+        const first = res?.err ?? errLine(r);
+        await new Promise((ok) => setTimeout(ok, 15_000));
+        const top = (await readAllAnchors(view, account)).at(-1);
+        if (top && top.seq === fin.seq && top.head === fin.head) res = { ok: true, near_tx: null, note: `attempt 1 landed (${first.slice(0, 120)})` };
+        else { r = once(); res = okOf(r); if (!res?.ok) refuse(`registry anchor failed twice: ${first.slice(0, 150)} | ${(res?.err ?? errLine(r)).slice(0, 150)}`, { ...base, socialdb_tx: sent[1] }); }
+      }
       regTx = res.near_tx;
     }
     // read both back: the registry is what a later check (flows: not_anchored_before_send) compares with the send's block time
