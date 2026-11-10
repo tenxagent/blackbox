@@ -1,9 +1,9 @@
 {
- "at": "2026-11-09T22:35:27.937Z",
+ "at": "2026-11-10T06:35:44.766Z",
  "since": "2026-11-05T18:12:53.902Z",
  "wallet": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
- "sends": 6,
- "txs": 10,
+ "sends": 7,
+ "txs": 12,
  "findings": [],
  "results": [
   {
@@ -278,6 +278,57 @@
     }
    ],
    "usdOut": 2
+  },
+  {
+   "seq": 5011,
+   "t": "2026-11-09T23:15:24.313Z",
+   "action": "relay_swap",
+   "chain": "robinhood",
+   "gateSeq": 5009,
+   "gateUsd": 4.299,
+   "txs": [
+    {
+     "tx": "0xe756f01ff4ba194a5c769b0d122bbf4e03e82b473cf229602ea06143b6174d4c",
+     "result": "ok",
+     "flows": [
+      {
+       "kind": "approval",
+       "token": "0x5baaec1b70864f01dbdb747358ff59f2e2ccf7d5",
+       "to": "0x5567954cd026cebfe486062cb75848e0f1c12e58",
+       "amount": "1500000000000000000000",
+       "usd": null,
+       "label": "Relay approvalProxy (v3.2) on Robinhood Chain",
+       "ok": true
+      }
+     ],
+     "shownToGate": true,
+     "anchoredBefore": {
+      "seq": 5009,
+      "time": "2026-11-09T23:15:12.575Z"
+     }
+    },
+    {
+     "tx": "0x5cfc87445b14ffa03d860f268d5a756e6e72a53f8d3154e98d9e60980d400103",
+     "result": "ok",
+     "flows": [
+      {
+       "kind": "transfer",
+       "token": "0x5baaec1b70864f01dbdb747358ff59f2e2ccf7d5",
+       "to": "0x0729e2a4716d9f7dd17858d5d504426d228697f7",
+       "amount": "1500000000000000000000",
+       "usd": null,
+       "label": "Relay erc20Router (v3.2) on Robinhood Chain",
+       "ok": true
+      }
+     ],
+     "shownToGate": true,
+     "anchoredBefore": {
+      "seq": 5009,
+      "time": "2026-11-09T23:15:12.575Z"
+     }
+    }
+   ],
+   "usdOut": 0
   }
  ],
  "missingGate": []
