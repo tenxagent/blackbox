@@ -34,6 +34,9 @@ was on NEAR before the send's block: the NEAR registry's clock against the chain
 **Demo video (66 s):** https://x.com/mr_ghdc/status/2116851371207012835 (the operator's NEAR HACKATHON post).
 **Follow-up (45 s), anchored before it is signed:** https://x.com/mr_ghdc/status/2118768584549704146 (the first live run
 above; every time in it is read from the records, the registry and the chain's blocks).
+**Money-first demo (62 s):** https://x.com/mr_ghdc/status/2119519412919455961. It shows a phishing payment refused, the decision
+on NEAR before the money moved, and a tampered copy caught. It was built on 2026-11-08 from live data, so its escape count
+(28 of 34 refused) is from that day; the current count is above.
 
 ### The track's example prompt, item by item
 
