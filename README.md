@@ -563,8 +563,8 @@ The internals, each with its source file, are in [docs/how-it-works.md](docs/how
   transfer (internal transactions are not read), and each unknown payee's address is sent to that service. It only adds
   to the warn reason and never changes a verdict.
 - **What does not go through the gate** (`UNGATED_KINDS` in `src/gate-core.mjs`; **Current numbers** counts each since the
-  gate went live): coin **sells by the sleeve tools** (`sleeve_sell`; GIGA sells go through the gated swap tool) (exits and stop-losses: the value comes back to the wallet, and an exit must not wait on
-  NEAR or an RPC); an **approval of one of its own NFT collections to OpenSea's conduit** so a listing can be filled (the
+  gate went live): coin **sells by the sleeve tools** (`sleeve_sell`, exits and stop-losses: the value comes back to the wallet, and an exit must
+  not wait on NEAR or an RPC; GIGA sells go through the gated swap tool); an **approval of one of its own NFT collections to OpenSea's conduit** so a listing can be filled (the
   conduit can then move that collection's NFTs); **signed listings** (no transaction until a buyer fills); **free mints**
   (value 0, gas only) and the **mint and crank race batches** (speed-critical); the **reinvest crank** (pays gas, earns a
   bounty); and **NEAR storage deposits** for its own anchors. These are logged and anchored like every record, so they are
