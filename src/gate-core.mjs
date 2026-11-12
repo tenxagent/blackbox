@@ -52,6 +52,27 @@ function forwardProblem(entry, c, policy) {
   return null;
 }
 
+// 2026-11-12 (address poisoning): an attacker sends dust from a vanity address that starts and ends like one the agent already
+// pays, hoping a copy from the history picks theirs. A payee whose first and last LOOK_HEX hex characters equal those of a known
+// address (the agent's own, an allow-listed one, a human-approved one, or an earlier approved payee) but which is a different
+// address is blocked. A human approval does not clear it (a glance at both ends is exactly what poisoning exploits); an
+// allow-list entry for that exact address, in a published commit, does. EVM addresses only, compared across chains (the
+// agent uses one key on every EVM chain). Two random addresses match by chance about once in 4 billion pairs. Pure.
+export const LOOK_HEX = 4;
+export function lookalikeOf(address, policy = {}, prior = new Map()) {
+  const a = norm(address), evm = (x) => /^0x[0-9a-f]{40}$/.test(x);
+  if (!evm(a) || [...(policy.self ?? []), ...(policy.allow ?? [])].some((e) => norm(e.address) === a)) return null;
+  const known = [...(policy.self ?? []).map((e) => [e.address, "the agent's own address"]),
+    ...(policy.allow ?? []).map((e) => [e.address, `the allow-listed ${e.label ?? 'address'}`]),
+    ...(policy.humanApproved ?? []).map((e) => [e.address, 'a human-approved payee']),
+    ...[...(prior?.keys?.() ?? [])].map((k) => [String(k).slice(String(k).indexOf(':') + 1), 'an earlier approved payee'])];
+  for (const [k, label] of known) {
+    const b = norm(k);
+    if (evm(b) && b !== a && a.slice(2, 2 + LOOK_HEX) === b.slice(2, 2 + LOOK_HEX) && a.slice(-LOOK_HEX) === b.slice(-LOOK_HEX)) return { address: b, label };
+  }
+  return null;
+}
+
 /** Rule 3 for one counterparty c = {address, chain?, role?, provenance?: {api, ...}}. facts = {codeHash?, nonce?} read by the
  *  caller (optional; {error} when the read failed: an allow-listed entry with a code hash then warns). → {address, chain, role,
  *  verdict: 'allow'|'warn'|'block', why}. Pure. */
@@ -62,6 +83,8 @@ export function judgeCounterparty(c, policy, prior, facts = {}) {
   if (blocked) return { ...out, verdict: 'block', why: blocked.reporter
     ? `blocklisted by ${blocked.reporter} (shared list, reported ${String(blocked.reportedAt).slice(0, 10)}): ${blocked.evidence}`
     : `blocklisted: ${blocked.evidence}` };
+  const look = lookalikeOf(addr, policy, prior);
+  if (look) return { ...out, verdict: 'block', lookalikeOf: look.address, why: `address-poisoning lookalike of ${look.label} ${look.address}: the same first ${LOOK_HEX} and last ${LOOK_HEX} hex characters, a different address; a human approval does not clear it, only an allow-list entry for this exact address in a published commit does` };
   if (!c.chain) return { ...out, verdict: 'warn', why: 'no chain given: allow-list entries, approvals and prior sends are per chain' };
   const listed = (policy.allow ?? []).find((e) => norm(e.address) === addr && sameChain(e, c));
   if (listed) {

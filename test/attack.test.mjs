@@ -42,7 +42,7 @@ export const tests = [
     },
   },
   {
-    name: 'escape attempts: every one of the 35 gets its expected verdict; the 4 not stopped (+ --no-gate) say where they show',
+    name: 'escape attempts: every one of the 36 gets its expected verdict; the 4 not stopped (+ --no-gate) say where they show',
     fn() {
       const rows = runEscapes();
       assert.equal(new Set(ESCAPES.map((e) => e.id)).size, ESCAPES.length);
@@ -50,7 +50,8 @@ export const tests = [
       const open = rows.filter((r) => r.action === 'gate_allow');
       assert.deepEqual(open.map((r) => r.id), [25, 28, 30, 31]);   // 15 refused since 2026-11-08 (history alone never clears a payee)   // 29 and 33 refused since the published price ceilings (2026-11-07)   // 16 and 27 refused since the gate reads the txs, 26 since it reads 1Click's record (2026-11-06)
       for (const r of open) assert.ok(r.stopped === false && r.shows.length > 20);
-      assert.equal(rows.filter((r) => r.action !== 'gate_allow').length, 31);   // 32 refused since screen 5 (an API-issued address is never re-cleared by history)
+      assert.equal(rows.filter((r) => r.action !== 'gate_allow').length, 32);   // 32 refused since screen 5 (an API-issued address is never re-cleared by history); 37 (lookalike) since 2026-11-12
+      assert.match(rows.find((r) => r.id === 37).why, /address-poisoning lookalike of the agent's own address 0x0073[0-9a-f]{32}be04:/);
     },
   },
   {

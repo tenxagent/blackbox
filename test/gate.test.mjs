@@ -24,6 +24,35 @@ const allow = (t, usd) => ({ t, engine: 'gate', type: 'gate', action: 'gate_allo
 const fresh = { timeMs: NOW - 3 * H };
 
 export const tests = [
+  { name: 'rule 3 lookalike (2026-11-12): same first and last 4 hex as a known address but different ⇒ block, even when human-approved; exact known addresses and other payees are untouched',
+    fn() {
+      const look = (a) => '0x' + a.slice(2, 6) + '9'.repeat(32) + a.slice(-4);           // starts and ends like a, a different address
+      const L_SELF = look(SELF), L_RELAY = look(RELAY), L_HUMAN = look(HUMAN), PRIOR = '0x' + 'c0de' + 'e'.repeat(32) + 'f00d';
+      const j = (a, pol = P, prior = new Map()) => judgeCounterparty({ address: a, chain: 'robinhood', role: 'recipient' }, pol, prior, {});
+      const self = j(L_SELF);
+      assert.equal(self.verdict, 'block'); assert.equal(self.lookalikeOf, SELF);
+      assert.match(self.why, /^address-poisoning lookalike of the agent's own address 0x5{40}: the same first 4 and last 4 hex characters/);
+      assert.equal(j(L_RELAY).verdict, 'block'); assert.match(j(L_RELAY).why, /lookalike of the allow-listed Relay proxy/);
+      assert.equal(j(L_HUMAN).verdict, 'block'); assert.match(j(L_HUMAN).why, /lookalike of a human-approved payee/);
+      // a human approval of the lookalike itself does not clear it
+      const approved = { ...P, humanApproved: [...P.humanApproved, { chain: 'robinhood', address: L_SELF, by: 'operator', at: '2026-11-12' }] };
+      assert.equal(j(L_SELF, approved).verdict, 'block');
+      // an earlier approved payee counts too (any chain key in the prior map)
+      assert.equal(j(look(PRIOR), P, new Map([[`robinhood:${PRIOR}`, 1]])).verdict, 'block');
+      assert.equal(j(look(PRIOR), P, new Map([[`elysium:${PRIOR}`, 2]])).verdict, 'block');
+      // exact known addresses are never lookalikes: the allow-listed one still allows, the human-approved one still allows
+      assert.equal(judgeCounterparty({ address: RELAY, chain: 'robinhood', role: 'spender' }, P, new Map(), F[`robinhood:${RELAY}`]).verdict, 'allow');
+      assert.equal(j(HUMAN).verdict, 'allow');
+      // only the first 4 or only the last 4 equal: not a lookalike (an ordinary unknown payee, warn)
+      assert.equal(j('0x5555' + '9'.repeat(36)).verdict, 'warn');
+      assert.equal(j('0x' + '9'.repeat(36) + '5555').verdict, 'warn');
+      assert.equal(j(NEW).verdict, 'warn');
+      // an allow-listed address that happens to look like another known one is still allowed (exact entries win)
+      const both = { ...P, allow: [...P.allow, { chain: 'robinhood', address: L_SELF, label: 'deliberately listed' }] };
+      assert.equal(j(L_SELF, both).verdict, 'allow');
+      // NEAR account ids are not compared
+      assert.equal(judgeCounterparty({ address: 'x.near', chain: 'near' }, P, new Map([['near:y.near', 1]]), {}).verdict, 'warn');
+    } },
   { name: 'allow: fresh anchor, nothing spent, small send',
     fn() { const r = evaluate({ rows: [], anchor: fresh, pendingUsd: 3, nowMs: NOW, policy: P, to: OK, facts: F }); assert.equal(r.allow, true); assert.equal(r.reasons.length, 0); } },
   { name: 'refuse: newest anchor older than maxAnchorAgeH (no anchoring => no spending)',
