@@ -45,7 +45,7 @@ import * as rpc from './near/rpc.mjs';
 import { readAllAnchors } from './registry.mjs';
 import { readShared } from './blocklist.mjs';
 
-import { REGISTRY, newestPublished, gateCoverage, txDigestInput, decodeTxs as coreDecodeTxs, evaluate as coreEvaluate, CHAIN_RPC, factsFromProof } from './gate-core.mjs';
+import { REGISTRY, newestPublished, gateCoverage, txDigestInput, decodeTxs as coreDecodeTxs, evaluate as coreEvaluate, CHAIN_RPC, factsFromProof, AGE_CHAIN_IDS, firstSeenFromIndex } from './gate-core.mjs';
 export * from './gate-core.mjs';   // 2026-11-07: the pure decision lives in gate-core.mjs (browser-safe); this file adds the I/O
 
 export const POLICY_FILE = fileURLToPath(new URL('../gate.policy.json', import.meta.url));
@@ -105,11 +105,52 @@ export async function readApiFacts(to, policy = readPolicy()) {
   return facts;
 }
 
-/** readFacts (code hash, nonce) + readApiFacts (trusted APIs' own records), merged per counterparty. */
-export async function readAllFacts(to, policy = readPolicy(), rpcs = CHAIN_RPC) {
-  const [a, b] = await Promise.all([readFacts(to, rpcs), readApiFacts(to, policy)]);
+// 2026-11-12: account AGE of unknown payees, from Etherscan's keyless MCP endpoint (the official mcp-keyless.etherscan.io: no key,
+// read-only, a shared free service, so calls are few and sequential). Two calls per payee: oldest transaction, oldest token transfer.
+export const ETHERSCAN_MCP = 'https://mcp-keyless.etherscan.io/mcp';
+/** Open an MCP session → call(tool, args) = the tool's answer parsed as JSON. Throws on any failure (readAgeFacts catches it). */
+export async function etherscanMcp(url = ETHERSCAN_MCP) {
+  const H = { 'content-type': 'application/json', accept: 'application/json, text/event-stream' };
+  const post = (headers, body, ms) => fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(ms) });
+  const init = await post(H, { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'blackbox-gate', version: '1' } } }, 15_000);
+  const sid = init.headers.get('mcp-session-id'); await init.text();
+  if (!init.ok || !sid) throw new Error(`index session not opened (HTTP ${init.status})`);
+  const h = { ...H, 'mcp-session-id': sid };
+  await (await post(h, { jsonrpc: '2.0', method: 'notifications/initialized' }, 15_000)).text();
+  let id = 2;
+  return async (name, args) => {
+    const t = await (await post(h, { jsonrpc: '2.0', id: id++, method: 'tools/call', params: { name, arguments: args } }, 20_000)).text();
+    const m = t.match(/data: (\{.*\})/s), j = JSON.parse(m ? m[1] : t);
+    if (j.error) throw new Error(`index error ${String(j.error.message ?? '').slice(0, 60)}`);
+    return JSON.parse((j.result?.content ?? []).map((c) => c.text ?? '').join(''));
+  };
+}
+/** to → { 'chain:address': {firstSeenSec, ageReadAtSec} | {firstSeen: null, ageReadAtSec} | {ageError} } for the payees that are
+ *  not on the policy's allow or self lists, on chains in AGE_CHAIN_IDS. Never rejects. call = (tool, args) → answer (tests pin it). */
+export async function readAgeFacts(to, policy = readPolicy(), call = null) {
+  const known = new Set([...(policy.allow ?? []), ...(policy.self ?? [])].map((e) => key(e.chain, e.address)));
+  const todo = [...new Map(to.filter((c) => AGE_CHAIN_IDS[c?.chain] && /^0x[0-9a-f]{40}$/.test(norm(c?.address)) && !known.has(key(c.chain, c.address)))
+    .map((c) => [key(c.chain, c.address), c])).values()];
+  const facts = {};
+  if (!todo.length) return facts;
+  try {
+    const q = call ?? (await etherscanMcp());
+    for (const c of todo) {
+      const args = { address: norm(c.address), chainid: AGE_CHAIN_IDS[c.chain], page: 1, offset: 1, sort: 'asc' };
+      try {
+        const answers = [await q('get_transactions', args), await q('get_token_transfers', args)], nowSec = Math.floor(Date.now() / 1000);
+        facts[key(c.chain, c.address)] = { ...firstSeenFromIndex(answers, nowSec), ageReadAtSec: nowSec };
+      } catch (e) { facts[key(c.chain, c.address)] = { ageError: String(e.message ?? e).slice(0, 80) }; }
+    }
+  } catch (e) { for (const c of todo) facts[key(c.chain, c.address)] ??= { ageError: String(e.message ?? e).slice(0, 80) }; }
+  return facts;
+}
+
+/** readFacts (code hash, nonce) + readApiFacts (trusted APIs' own records) + readAgeFacts (account age), merged per counterparty. */
+export async function readAllFacts(to, policy = readPolicy(), rpcs = CHAIN_RPC, ageCall = null) {
+  const [a, b, c] = await Promise.all([readFacts(to, rpcs), readApiFacts(to, policy), readAgeFacts(to, policy, ageCall)]);
   const out = { ...a };
-  for (const [k, v] of Object.entries(b)) out[k] = { ...(out[k] ?? {}), ...v };
+  for (const src of [b, c]) for (const [k, v] of Object.entries(src)) out[k] = { ...(out[k] ?? {}), ...v };
   return out;
 }
 

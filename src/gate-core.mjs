@@ -101,16 +101,18 @@ export function judgeCounterparty(c, policy, prior, facts = {}) {
   // Now the published policy is the only thing that clears a payee; earlier approved sends are reported in the reason as a signal.
   const n = prior.get(key(c.chain, addr)) ?? 0;
   const history = n > 0 ? `; ${n} earlier approved send${n > 1 ? 's' : ''} on this chain, but history alone never clears a payee (an allow-list entry or a human approval that was removed stays removed)` : '';
-  // 2026-11-07 (the track prompt's 'age and activity' signal): what the chain shows about an unknown payee goes into the reason.
-  // Account AGE is not readable from public data on Robinhood Chain (its public RPC keeps no historical state and its Blockscout
-  // API answered 403 behind a browser challenge), so the gate reports activity only: transactions sent (nonce), code or not, and the balance.
+  // 2026-11-07 (the track prompt's 'age and activity' signal): what the chain shows about an unknown payee goes into the reason:
+  // transactions sent (nonce), code or not, and the balance. 2026-11-12: plus its AGE (ageText below): Robinhood Chain's public RPC
+  // keeps no historical state and its Blockscout API sits behind a browser challenge, so the first time Etherscan's index of the
+  // chain saw the address is read instead (src/gate.mjs readAgeFacts). Like activity, age is a reason signal: it never changes a verdict.
   let seen = '';
   if (Number.isInteger(facts.nonce)) {
     seen = facts.nonce === 0 && facts.codeHash === null ? '; fresh address (0 txs, no code)'
       : `; on chain: ${facts.codeHash ? `a contract, nonce ${facts.nonce} (for a contract the nonce counts the contracts it created, not its use)` : `${facts.nonce} tx${facts.nonce === 1 ? '' : 's'} sent, no code`}${facts.balanceWei !== undefined ? `, balance ${(Number(BigInt(facts.balanceWei)) / 1e18).toPrecision(3)} native` : ''}${facts.nonce <= 1 && !facts.codeHash ? ' (barely used)' : ''}`;
   } else if (facts.error) seen = `; on-chain facts unreadable (${facts.error})`;
-  return { ...out, verdict: 'warn', why: `${n > 0 ? 'not cleared by the published policy' : 'unknown counterparty'}: not allow-listed, not from a trusted API, ${n > 0 ? 'no human approval' : 'never approved'}${seen}${history} ⇒ ask a human`,
+  return { ...out, verdict: 'warn', why: `${n > 0 ? 'not cleared by the published policy' : 'unknown counterparty'}: not allow-listed, not from a trusted API, ${n > 0 ? 'no human approval' : 'never approved'}${seen}${ageText(facts)}${history} ⇒ ask a human`,
     ...(n > 0 ? { priorSends: n } : {}),
+    ...(Number.isFinite(facts.firstSeenSec) ? { firstSeenSec: facts.firstSeenSec } : {}),
     ...(Number.isInteger(facts.nonce) ? { activity: { txsSent: facts.nonce, contract: !!facts.codeHash, ...(facts.balanceWei !== undefined ? { balanceWei: facts.balanceWei } : {}) } } : {}) };
 }
 
@@ -309,6 +311,35 @@ export function gateCoverage(rows, { since = GATE_LIVE_SINCE, windowMin = 15 } =
 // Code hash + nonce + balance of an EVM counterparty, from eth_getProof (no keccak library needed): the RPCs the gate reads, and
 // the pure parse of their answer (src/gate.mjs readFacts and the verifier page both use it).
 export const CHAIN_RPC = { robinhood: 'https://rpc.mainnet.chain.robinhood.com', elysium: 'https://rpc-live.elysp.com' };
+
+// 2026-11-12: account AGE of an unknown payee (the track prompt's 'account age' signal). The chains whose addresses Etherscan's
+// keyless MCP endpoint indexes, by Etherscan chain id; the oldest transaction and the oldest token transfer of an address give the
+// first time the index saw it. Elysium is not indexed there, so it gets no age.
+export const AGE_CHAIN_IDS = { robinhood: '4663' };
+const AGE_MIN_SEC = 1420070400;   // 2015-01-01: anything older is not a real answer
+/** The oldest-first index answers ({status, message, result: [{timeStamp}]}) → {firstSeenSec} | {firstSeen: null} (nothing indexed).
+ *  The answers are untrusted data: only a plausible timestamp is kept, and any other shape throws. Pure. */
+export function firstSeenFromIndex(answers, nowSec) {
+  let first = null;
+  for (const a of answers) {
+    if (a?.status === '0' && Array.isArray(a.result) && a.result.length === 0) continue;   // "No transactions found"
+    const ts = a?.status === '1' && Array.isArray(a.result) ? String(a.result[0]?.timeStamp ?? '') : '';
+    if (!/^\d{9,11}$/.test(ts) || Number(ts) < AGE_MIN_SEC || Number(ts) > nowSec + 600) throw new Error('unexpected index answer');
+    first = first === null ? Number(ts) : Math.min(first, Number(ts));
+  }
+  return first === null ? { firstSeen: null } : { firstSeenSec: first };
+}
+/** Age facts {firstSeenSec, ageReadAtSec} | {firstSeen: null} | {ageError} → the text appended to an unknown payee's reason ('' when
+ *  age was not read). Pure. */
+export function ageText(f = {}) {
+  if (Number.isFinite(f.firstSeenSec) && Number.isFinite(f.ageReadAtSec)) {
+    const days = Math.max(0, Math.floor((f.ageReadAtSec - f.firstSeenSec) / 86400));
+    return `; first seen ${new Date(f.firstSeenSec * 1000).toISOString().slice(0, 10)}, ${days} day${days === 1 ? '' : 's'} before this check${days < 7 ? ' (under a week old)' : ''} (Etherscan's index of the chain)`;
+  }
+  if (f.firstSeen === null) return "; no transaction or token transfer in Etherscan's index of the chain";
+  if (f.ageError) return `; account age unreadable (${f.ageError})`;
+  return '';
+}
 const EMPTY_CODE = new Set(['0x' + '0'.repeat(64), '0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470']);
 /** eth_getProof result → {codeHash (null = no code), nonce, balanceWei}. Throws if it has no codeHash. */
 export function factsFromProof(r) {
