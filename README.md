@@ -13,6 +13,19 @@ in an **append-only registry on NEAR mainnet that has no access keys**. Since 20
 on NEAR **before** the send is signed (the agent's wrapper enforces that order; publicly, anyone can check that the decision
 was on NEAR before the send's block: the NEAR registry's clock against the chain's block time, `node src/flows.mjs`, section "Anchored before it is signed").
 
+**Check it in one minute** (Node 22, nothing to install, no keys):
+
+| Do | See |
+|---|---|
+| `node demo/attack/run.mjs` | `injected payee, real policy: GATE_WARN`, `injected payee, demo blocklist: GATE_REFUSE`, `control: same amount to Relay: GATE_ALLOW`, then `verify: FAILS at seq 1` once the refusal is edited into an approval. |
+| `node src/gate.mjs check --pending-usd 3 --to 0xf890d292d00b1a2731443dac059d869c487bff52 --chain robinhood --account 00537bf24e164c18f3512de1040d34c88a11f37976a3ef6d4de673dc9cef6590` | The live gate on mainnet data: `gate_warn` for a never-used address, with what the chain and Etherscan's index of it show, exit code 1. |
+| `node test/run.mjs` | `<N−1> passed, 0 failed, 1 skipped` (N under **Current numbers**; the full 12-step judge path is under **Try it**). |
+| Open https://tenxagent.github.io/blackbox/web/ | The same checks in a browser, and the gate on a payee you type (section 7). |
+
+**What it does not do:** the money key is an EVM key on Robinhood Chain, which has no function-call keys, and the gate is
+code the agent runs. A compromised agent host could sign without it: that send shows afterwards (`node src/gate.mjs coverage`,
+`node src/coverage.mjs`), it is not stopped. See **Limits (stated plainly)**.
+
 - **A real refusal in the real log.** A phishing message got the live agent to ask for its whole USDG balance to go to
   `0x…dEaD`. The gate refused it (`gate_warn`, record 3463), and that record is anchored, so editing it now fails
   verification. Run `node demo/attack/run.mjs` (section **Attack demo**).
@@ -31,12 +44,12 @@ was on NEAR before the send's block: the NEAR registry's clock against the chain
 - **The attacks that get through are listed too.** There are 36 escape attempts: 31 refused, and 5 not stopped, each
   with where it shows instead. Run `node demo/attack/escapes.mjs`.
 
-**Demo video (66 s):** https://x.com/mr_ghdc/status/2116851371207012835 (the operator's NEAR HACKATHON post).
-**Follow-up (45 s), anchored before it is signed:** https://x.com/mr_ghdc/status/2118768584549704146 (the first live run
-above; every time in it is read from the records, the registry and the chain's blocks).
-**Money-first demo (62 s):** https://x.com/mr_ghdc/status/2119519412919455961. It shows a phishing payment refused, the decision
-on NEAR before the money moved, and a tampered copy caught. It was built on 2026-11-08 from live data, so its escape count
-(28 of 34 refused) is from that day; the current count is above.
+**Demo video (62 s, money first):** https://x.com/mr_ghdc/status/2119519412919455961. It shows a phishing payment refused,
+the decision on NEAR before the money moved, and a tampered copy caught. It was built on 2026-11-08 from live data, so its
+escape count (28 of 34 refused) is from that day; the current count is above.
+**Earlier videos:** the first demo (66 s), https://x.com/mr_ghdc/status/2116851371207012835 (the operator's NEAR HACKATHON
+post), and the first live run anchored before it is signed (45 s), https://x.com/mr_ghdc/status/2118768584549704146 (every
+time in it is read from the records, the registry and the chain's blocks).
 
 ### The track's example prompt, item by item
 
