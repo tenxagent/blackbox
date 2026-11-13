@@ -4,7 +4,7 @@
  "agentWallet": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
  "explorerTx": "https://robinhoodchain.blockscout.com/tx/",
  "counts": {
-  "verified": 337,
+  "verified": 341,
   "not_on_rh": 11
  },
  "results": [
@@ -4475,6 +4475,58 @@
    "block": 113060938,
    "blockTime": "2026-11-13T03:55:43.000Z",
    "lagSec": 6,
+   "to": "0x8f3ea5d1333971f38026e04747d985748385f645"
+  },
+  {
+   "seq": 6340,
+   "tx": "0x6153a6b3a0c9a5ef82fcd5f00e9ff700d5873c37295c6bede0771f6f19886e8d",
+   "chain": null,
+   "what": "flock_reinvest",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 113510966,
+   "blockTime": "2026-11-13T16:56:29.000Z",
+   "lagSec": 5,
+   "to": "0x8f3ea5d1333971f38026e04747d985748385f645"
+  },
+  {
+   "seq": 6348,
+   "tx": "0x53f1f87b2c01076163c8c5423514e1011709f9606b95cc0e1b0fb542bc0ec2e6",
+   "chain": null,
+   "what": "flock_reinvest",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 113531402,
+   "blockTime": "2026-11-13T17:31:39.000Z",
+   "lagSec": 5,
+   "to": "0x8f3ea5d1333971f38026e04747d985748385f645"
+  },
+  {
+   "seq": 6357,
+   "tx": "0x41e0c2d0cdc6b8b1d5d01cf5195386cfc6ce071a27038f1f2d33660a39a8852e",
+   "chain": null,
+   "what": "flock_reinvest",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 113551603,
+   "blockTime": "2026-11-13T18:06:49.000Z",
+   "lagSec": 5,
+   "to": "0x8f3ea5d1333971f38026e04747d985748385f645"
+  },
+  {
+   "seq": 6365,
+   "tx": "0xe01278cae494ed79c5f310e2f2b47e89a1b5df4a3ec1dff77381c0214ba780dd",
+   "chain": null,
+   "what": "flock_reinvest",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 113571633,
+   "blockTime": "2026-11-13T18:41:59.000Z",
+   "lagSec": 5,
    "to": "0x8f3ea5d1333971f38026e04747d985748385f645"
   }
  ]
