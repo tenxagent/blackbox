@@ -7,12 +7,12 @@
   "every": 256,
   "hourly": true
  },
- "records": 7347,
- "recordsSha256": "21d6a0f09ff316ae7a94cdb809bc2c1176b687203a69c931d094840fb5a3773d",
+ "records": 7471,
+ "recordsSha256": "bd2b92d0b5ec37210adcc8962871a1ff73dfdda8ff982f43d40a5b5ced37599e",
  "final": {
-  "seq": 7347,
-  "t": "2026-11-16T14:29:44.344Z",
-  "head": "17a1f57ff50c6f392209849295956bd1ad3a4ca827f4a8309c5f25d9ff4f30b7"
+  "seq": 7471,
+  "t": "2026-11-16T22:31:49.454Z",
+  "head": "7567d23b1e0b1ea10a5ff9f02f3a40d595d57062a5e2cff14d68c819b9b736d1"
  },
  "checkpoints": [
   {
@@ -3193,6 +3193,60 @@
    "seq": 7341,
    "t": "2026-11-16T13:59:41.232Z",
    "head": "74c7edd9b931c621e6296ab4fec76df191e088a2e5210da89e90a2aa450f5065",
+   "why": "hour"
+  },
+  {
+   "seq": 7355,
+   "t": "2026-11-16T14:59:48.514Z",
+   "head": "780962702e2aeb97ee013fe7905c7982791e6886a5ed53afb7d5a004dc901dde",
+   "why": "hour"
+  },
+  {
+   "seq": 7373,
+   "t": "2026-11-16T15:59:54.413Z",
+   "head": "0054f2e01701b0fbc40e5b69a55b7975c8c088146878c4e99621f6b4f031117d",
+   "why": "hour"
+  },
+  {
+   "seq": 7387,
+   "t": "2026-11-16T16:55:03.844Z",
+   "head": "741d91d0a1b380b9d3b46594f4072461a2fd3952bc1fb180597f776b61ab0eeb",
+   "why": "hour"
+  },
+  {
+   "seq": 7405,
+   "t": "2026-11-16T17:58:45.643Z",
+   "head": "ffed47d10062946ebe7fdfeca297f62c4e5f0b12ea9cc16b4c4ffe78bdf60324",
+   "why": "hour"
+  },
+  {
+   "seq": 7421,
+   "t": "2026-11-16T18:56:06.256Z",
+   "head": "ecbbef1ee10010047d2a7711c6b04f77088303c4d894f4c4fb0708809b95c049",
+   "why": "hour"
+  },
+  {
+   "seq": 7424,
+   "t": "2026-11-16T19:11:09.094Z",
+   "head": "797c809de916446ec3851060e52d202324b01d42b40106035684018835c671a6",
+   "why": "count"
+  },
+  {
+   "seq": 7433,
+   "t": "2026-11-16T19:56:17.126Z",
+   "head": "432981bb168e78cee01fe98d47e5ab52129bf4450a5533035e514b72d3c79a23",
+   "why": "hour"
+  },
+  {
+   "seq": 7449,
+   "t": "2026-11-16T20:56:37.968Z",
+   "head": "b9a36fae174435644db1f804056b1b406aff8ca2b5bf82e17f410302fddaf07e",
+   "why": "hour"
+  },
+  {
+   "seq": 7464,
+   "t": "2026-11-16T21:56:46.329Z",
+   "head": "958573b9a2d485cf2db56e1c155957d6355527dbe17c1025cdb8c923d1879cb3",
    "why": "hour"
   }
  ]
