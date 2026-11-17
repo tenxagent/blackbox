@@ -12,6 +12,12 @@
    "chain": "near",
    "address": "00537bf24e164c18f3512de1040d34c88a11f37976a3ef6d4de673dc9cef6590",
    "label": "the agent's NEAR account"
+  },
+  {
+   "chain": "bch",
+   "address": "bitcoincash:qrh5dcfdqshmf6zwl8s4df0lh34fk6w6pyanszs744",
+   "label": "the agent's Bitcoin Cash address. Added 2026-11-17, after the NEAR deadline, with the operator's OK: it receives about $1 of the agent's own USDG through 1Click to pay for one on-chain identity commitment in a separate BCH project",
+   "added": "2026-11-17T21:11Z"
   }
  ],
  "allow": [
