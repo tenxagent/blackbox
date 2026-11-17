@@ -136,6 +136,16 @@ export const tests = [
         'Simulated a reinvest: the call would fail (reverted: FMG: SLIPPAGE) → wait.');
       assert.ok(describe({ row: { type: 'live_intent', action: 'near_fund', usdg: '1', downside: '-$1' } }).startsWith('About to send (written before signing): near fund, 1 USDG; worst case -$1'));
       assert.ok(describe({ row: { type: 'vanta_err', engine: 'vanta', err: 'fetch failed' } }).includes('not a decision'));
+      // 2026-11-17: the BCH identity commitment (separate BCH project): fund the agent's own BCH address, then one OP_RETURN tx.
+      // The first two commitment rows were logged WITHOUT a type, so these descriptions must not depend on it.
+      assert.equal(live({ engine: 'bchfund', action: 'bch_fund_deposit', depositAddress: '0xe336515545f137272e9180EeA7c9A94bDa198FD6' }),
+        'Sent USDG to a NEAR Intents deposit address, to fund its own Bitcoin Cash address.');
+      assert.equal(live({ engine: 'bchfund', action: 'bch_fund_done', status: 'SUCCESS', details: { amountInFormatted: '1.0', amountOutFormatted: '0.00476495' } }),
+        'NEAR Intents finished the swap (SUCCESS): 1.0 USDG in, 0.004765 BCH out, to its own Bitcoin Cash address.');
+      assert.equal(describe({ row: { engine: 'bchfund', action: 'bch_commit', fee: '240', txid: '5dd5b56182ba05b7a4797c8eb142252efb5e635ff43b9272fbf8767820bdfc6c' } }),
+        'About to broadcast (written before sending) one Bitcoin Cash identity commitment from its own BCH address: an OP_RETURN naming its Nostr key, the change back to itself, fee 240 sat. Not gated: the gate reads EVM transactions only.');
+      assert.equal(describe({ row: { engine: 'bchfund', action: 'bch_commit_sent', txid: '5dd5b56182ba05b7a4797c8eb142252efb5e635ff43b9272fbf8767820bdfc6c' } }),
+        'Broadcast the Bitcoin Cash identity commitment 5dd5b561…bdfc6c (an OP_RETURN naming its Nostr key; the change went back to itself).');
     },
   },
   {

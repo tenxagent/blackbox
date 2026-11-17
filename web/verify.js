@@ -133,6 +133,9 @@ export function describe(rec) {
   const r = rec.row || {};
   const a = r.action;
   const on = r.slug ? ` on ${r.slug}` : '';
+  // 2026-11-17: the BCH identity commitment (a separate BCH project). Its first rows were logged without a type, so match on the action.
+  if (r.engine === 'bchfund' && a === 'bch_commit') return `About to broadcast (written before sending) one Bitcoin Cash identity commitment from its own BCH address: an OP_RETURN naming its Nostr key, the change back to itself, fee ${r.fee} sat. Not gated: the gate reads EVM transactions only.`;
+  if (r.engine === 'bchfund' && a === 'bch_commit_sent') return `Broadcast the Bitcoin Cash identity commitment ${short(r.txid)} (an OP_RETURN naming its Nostr key; the change went back to itself).`;
   switch (r.type) {
     case 'gate': {   // src/gate.mjs decisions written by the agent before a deliberate send
       const what = r.what ? ` (${r.what})` : '';
@@ -171,6 +174,8 @@ export function describe(rec) {
         case 'sleeve_fund_inbox': return `Deposited ${amt(r.hype)} HYPE into the Elysium bridge inbox on HyperEVM.`;
         case 'near_fund_deposit': return 'Sent USDG to a NEAR Intents deposit address, to fund its NEAR account.';
         case 'near_fund_done': { const d = r.details || {}; return `NEAR Intents finished the swap (${r.status}): ${d.amountInFormatted} USDG in, ${amt(d.amountOutFormatted)} NEAR out.`; }
+        case 'bch_fund_deposit': return 'Sent USDG to a NEAR Intents deposit address, to fund its own Bitcoin Cash address.';
+        case 'bch_fund_done': { const d = r.details || {}; return `NEAR Intents finished the swap (${r.status}): ${d.amountInFormatted} USDG in, ${amt(d.amountOutFormatted)} BCH out, to its own Bitcoin Cash address.`; }
         case 'near_hackathon_submitted': return `Submitted ${r.project} to the NEAR hackathon (${r.repo}).`;
         case 'blackbox_first_anchor': return `First anchor on NEAR: wrote the head after record ${r.seq} to SocialDB (read back: ${r.readback}).`;
         case 'blackbox_anchor': return `Anchored the head after record ${r.seq} on NEAR (SocialDB).`;
