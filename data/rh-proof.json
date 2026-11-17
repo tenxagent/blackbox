@@ -4,7 +4,7 @@
  "agentWallet": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
  "explorerTx": "https://robinhoodchain.blockscout.com/tx/",
  "counts": {
-  "verified": 341,
+  "verified": 342,
   "not_on_rh": 11
  },
  "results": [
@@ -4528,6 +4528,19 @@
    "blockTime": "2026-11-13T18:41:59.000Z",
    "lagSec": 5,
    "to": "0x8f3ea5d1333971f38026e04747d985748385f645"
+  },
+  {
+   "seq": 7822,
+   "tx": "0x9066b523f9b11a316a13b9c3cff3a995efb52d2d9c434b22130cd139865e636d",
+   "chain": null,
+   "what": "bch_fund_deposit",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 116885615,
+   "blockTime": "2026-11-17T21:14:40.000Z",
+   "lagSec": 5,
+   "to": "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
   }
  ]
 }
