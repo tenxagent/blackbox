@@ -7,12 +7,12 @@
   "every": 256,
   "hourly": true
  },
- "records": 7854,
- "recordsSha256": "99972fcce3a648ae2063b2a58f28a059a1aa572b6069a4761c4ce58c67f8d52e",
+ "records": 7973,
+ "recordsSha256": "4ddcc3cbb8b79d337441c59e7942ac35ece8d7089a116ef75a5673ee8c67fa5f",
  "final": {
-  "seq": 7854,
-  "t": "2026-11-17T22:49:00.105Z",
-  "head": "ac59abf4d601da377d71dc4587fa54248786c258fb2ad58983321c1cc08ff02b"
+  "seq": 7973,
+  "t": "2026-11-18T06:28:47.343Z",
+  "head": "3c3c087d98cbf9cb17e7ce2e1ca7e5399d44ef0219aa4ddf83c86e8b2b80f907"
  },
  "checkpoints": [
   {
@@ -3397,6 +3397,54 @@
    "seq": 7835,
    "t": "2026-11-17T21:55:31.944Z",
    "head": "ebb13d098a437056a0798e222e692a15dc63a455d6ffc8fb2dbcab7e8c8a8eeb",
+   "why": "hour"
+  },
+  {
+   "seq": 7859,
+   "t": "2026-11-17T22:59:47.318Z",
+   "head": "d0a4b7c0c705edce6da23c733a434ec4c22b7ab922cc1a6bd906ebdbd72bd446",
+   "why": "hour"
+  },
+  {
+   "seq": 7874,
+   "t": "2026-11-17T23:58:08.388Z",
+   "head": "6447e88998609db2807981ccc09bacbdfde5c0c6fcdf7a5a47c15dce135a4a3b",
+   "why": "hour"
+  },
+  {
+   "seq": 7893,
+   "t": "2026-11-18T00:58:14.034Z",
+   "head": "8bff0666b56c3db9a5029933c87721fa34adda8f463920daabf539286a9032ae",
+   "why": "hour"
+  },
+  {
+   "seq": 7907,
+   "t": "2026-11-18T01:58:21.557Z",
+   "head": "2c3096390e11389f3030b262a98cfbe63717e940f39786759c4938c033c2dfcc",
+   "why": "hour"
+  },
+  {
+   "seq": 7920,
+   "t": "2026-11-18T02:58:27.455Z",
+   "head": "ff31f22cd73f0d25270ac41f5e246c40d191d29e18e9accff7ec4184938d93f9",
+   "why": "hour"
+  },
+  {
+   "seq": 7936,
+   "t": "2026-11-18T03:58:34.721Z",
+   "head": "327d9cc66af7b83c241d5e1f617fa7f252a2f580be3f52b65458c2d37d9c5e26",
+   "why": "count+hour"
+  },
+  {
+   "seq": 7951,
+   "t": "2026-11-18T04:58:38.720Z",
+   "head": "76d0b7145e64a6babc35b25634c1f3448cfa40a0f9a29904af6e080e9600f22c",
+   "why": "hour"
+  },
+  {
+   "seq": 7965,
+   "t": "2026-11-18T05:59:29.033Z",
+   "head": "abf359360a6ba3a53d2a4ecffd57043210adfdeb3f87c0757100b6c063248460",
    "why": "hour"
   }
  ]
