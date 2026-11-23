@@ -4,7 +4,7 @@
  "agentWallet": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
  "explorerTx": "https://robinhoodchain.blockscout.com/tx/",
  "counts": {
-  "verified": 343,
+  "verified": 344,
   "not_on_rh": 11
  },
  "results": [
@@ -4553,6 +4553,19 @@
    "block": 121372474,
    "blockTime": "2026-11-23T11:27:03.000Z",
    "lagSec": 2,
+   "to": "0x8f3ea5d1333971f38026e04747d985748385f645"
+  },
+  {
+   "seq": 9868,
+   "tx": "0x843bf98efe91af18815a4385cc3a91956a2150dbfd9c3ab288ccd2cb4adbf1e4",
+   "chain": null,
+   "what": "flock_reinvest",
+   "result": "verified",
+   "from": "0x00731cd9e0bc7cad1b54f85187b09b942cd3be04",
+   "status": 1,
+   "block": 121588117,
+   "blockTime": "2026-11-23T17:34:02.000Z",
+   "lagSec": 6,
    "to": "0x8f3ea5d1333971f38026e04747d985748385f645"
   }
  ]
