@@ -7,12 +7,12 @@
   "every": 256,
   "hourly": true
  },
- "records": 10385,
- "recordsSha256": "472882ace7a0bd254ca559036885e2b9c832e0c465f3413e8cf8ebaaafb7ccda",
+ "records": 10649,
+ "recordsSha256": "a7f48467fdb70592e909c8f04f86ac872fcf7bef34c4c94685d5bb09c4be2ffb",
  "final": {
-  "seq": 10385,
-  "t": "2026-11-25T06:28:08.688Z",
-  "head": "e5470486c8c93e0a577fd216c2824175e1af04b624a89178578b18e6b2cb7d15"
+  "seq": 10649,
+  "t": "2026-11-25T23:10:03.599Z",
+  "head": "e486f67a721a9a531edb0e52d9f6c99cea7e6f15b080a5085ef4b8a7927d6644"
  },
  "checkpoints": [
   {
@@ -4507,6 +4507,114 @@
    "seq": 10378,
    "t": "2026-11-25T05:58:05.973Z",
    "head": "fdde8d8d121393ec23fa44f7080f7dad14431dad85351febfcf91a203c833c75",
+   "why": "hour"
+  },
+  {
+   "seq": 10394,
+   "t": "2026-11-25T06:58:12.545Z",
+   "head": "03b7a7292d940cd07c29f79a4e03c9a0947ac9b8fe6cab3c87f887fa4134de2c",
+   "why": "hour"
+  },
+  {
+   "seq": 10409,
+   "t": "2026-11-25T07:58:20.085Z",
+   "head": "a309f40c8f1bdb5ce76fe992ba56493472069ef8d50c091e16369d7501138976",
+   "why": "hour"
+  },
+  {
+   "seq": 10421,
+   "t": "2026-11-25T08:58:35.758Z",
+   "head": "0456f9e7de9cf7bac3d688fc548aa17ed77d74904d2afdeb64eb98d0c2199673",
+   "why": "hour"
+  },
+  {
+   "seq": 10434,
+   "t": "2026-11-25T09:58:41.982Z",
+   "head": "f1cf26bc302e6ea47907e9b964d1102b86560e827e5037d4aaf27695b7ff8508",
+   "why": "hour"
+  },
+  {
+   "seq": 10448,
+   "t": "2026-11-25T10:58:48.250Z",
+   "head": "2615996ea3aeca4143e1a62ae3a8d728dd1a24604910259d7ed6c63b06756b78",
+   "why": "hour"
+  },
+  {
+   "seq": 10461,
+   "t": "2026-11-25T11:58:54.150Z",
+   "head": "01cd173b9c4ee963418920c1a9bb9e7337ac3141068e9e7c7457aa1d30da180c",
+   "why": "hour"
+  },
+  {
+   "seq": 10475,
+   "t": "2026-11-25T12:59:00.171Z",
+   "head": "72c146a9dee34cd26ae50cc0f087ef6c87b325cac7d6b5544512d8c0eba6d16c",
+   "why": "hour"
+  },
+  {
+   "seq": 10488,
+   "t": "2026-11-25T13:59:06.747Z",
+   "head": "59194b0e671def7a85e563c5dc1a2653da152b17f4e4069c0744ea02089a1c6a",
+   "why": "hour"
+  },
+  {
+   "seq": 10496,
+   "t": "2026-11-25T14:35:34.507Z",
+   "head": "16e45d53c32d017bac6f8a237e18176855326edcc6374e405ba6474e3b890b4d",
+   "why": "count"
+  },
+  {
+   "seq": 10501,
+   "t": "2026-11-25T14:59:12.963Z",
+   "head": "023e1a2467e3255f03a82663e5cb55b101af996740a1ba2ea338c3b1d5b68bf8",
+   "why": "hour"
+  },
+  {
+   "seq": 10521,
+   "t": "2026-11-25T15:59:18.648Z",
+   "head": "3d806c5f7a93b17aba169fc34546b49f36ce86a83caf49ceb18a7c1f9d6347b2",
+   "why": "hour"
+  },
+  {
+   "seq": 10533,
+   "t": "2026-11-25T16:59:24.848Z",
+   "head": "15a00ee0a793eed8c7fb7734be074abe4fd5f90e9a2a2bfb863608475956dc98",
+   "why": "hour"
+  },
+  {
+   "seq": 10550,
+   "t": "2026-11-25T17:59:31.376Z",
+   "head": "1b8883dee4612848071248a75b09f5ae783d6a158d4e78db5c1116ae44a93928",
+   "why": "hour"
+  },
+  {
+   "seq": 10566,
+   "t": "2026-11-25T18:59:37.427Z",
+   "head": "cc1c9400d122178e406aa11f9fee3822684072a7656e3d8460cb7f0d473ac859",
+   "why": "hour"
+  },
+  {
+   "seq": 10587,
+   "t": "2026-11-25T19:59:43.892Z",
+   "head": "40f846b548f3c2715163581c890671244b1623dc7ba144c9f18c05b6e1e4841a",
+   "why": "hour"
+  },
+  {
+   "seq": 10607,
+   "t": "2026-11-25T20:59:50.086Z",
+   "head": "631b08583d0552218ebc3f0ea9cb56b8df9a42d2befaed57cc2970996afc4433",
+   "why": "hour"
+  },
+  {
+   "seq": 10627,
+   "t": "2026-11-25T21:59:56.024Z",
+   "head": "6cc0ad4523a554dfee3b8a0030d6eb7589d621f66cb741bf580f83812438d4ab",
+   "why": "hour"
+  },
+  {
+   "seq": 10646,
+   "t": "2026-11-25T22:56:40.803Z",
+   "head": "a081ea171090583f6451e893c0ffb57315ba6ff9f4e20279b97f567ed3d2fc26",
    "why": "hour"
   }
  ]
