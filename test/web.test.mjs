@@ -124,6 +124,19 @@ export const tests = [
     },
   },
   {
+    // 2026-11-25: a Robinhood RPC 503 at 08:33Z logged ethers' full error ("… (request={  }, response={  }, error=null, info={ …") and the
+    // first 100 chars went into the description ⇒ the check above failed and two cycles (14:31Z, 22:31Z) reverted. Keep the lead clause only.
+    name: 'error rows: ethers detail block is cut, only the lead clause is shown',
+    fn() {
+      const err = 'server response 503 Service Unavailable (request={  }, response={  }, error=null, info={ "requestUrl": "https://rpc.mainnet.chain.robinhood.com", "responseBody": "upstream connect error or disconnect/';
+      assert.equal(describe({ row: { type: 'flock_err', engine: 'flock', err } }),
+        'Error in flock: server response 503 Service Unavailable (logged; not a decision).');
+      assert.equal(describe({ row: { type: 'vanta_err', engine: 'vanta', err: 'could not detect network  (event="noNetwork", code=NETWORK_ERROR, version=6.13.4)' } }),
+        'Error in vanta: could not detect network (logged; not a decision).');
+      assert.equal(describe({ row: { type: 'vanta_err', engine: 'vanta', err: 'fetch failed' } }), 'Error in vanta: fetch failed (logged; not a decision).');
+    },
+  },
+  {
     name: 'decision list: money and NEAR rows say what moved, not just the action name',
     fn() {
       const live = (row) => describe({ row: { type: 'live', ...row } });

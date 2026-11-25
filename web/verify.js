@@ -125,7 +125,8 @@ const words = (s) => String(s ?? '').replace(/_/g, ' ');
 const CHAINS = { robinhood: 'Robinhood Chain', bsc: 'BNB Chain', hyperevm: 'HyperEVM', elysium: 'Elysium', base: 'Base', somnia: 'Somnia' };
 const chainOn = (c) => (c ? ` on ${CHAINS[c] || c}` : '');
 // the useful part of an RPC/HTTP error string: the revert reason if there is one, else the first 100 characters
-const errText = (e) => { const s = typeof e === 'string' ? e : JSON.stringify(e ?? ''); const m = s.match(/execution reverted:? ?([^"\\]*)/); return m ? `reverted${m[1] ? `: ${m[1].trim()}` : ''}` : s.slice(0, 100); };
+// 2026-11-25: ethers appends a detail block "(request=…, response=…, error=null, info=…)" ⇒ keep the lead clause only, whitespace collapsed
+const errText = (e) => { const s = typeof e === 'string' ? e : JSON.stringify(e ?? ''); const m = s.match(/execution reverted:? ?([^"\\]*)/); return m ? `reverted${m[1] ? `: ${m[1].trim()}` : ''}` : (s.replace(/\s*\(\w+=[\s\S]*$/, '').replace(/\s+/g, ' ').trim() || s.replace(/\s+/g, ' ').trim()).slice(0, 100); };
 const why = (r) => (r.why ? `: ${r.why}` : '');
 
 // One record -> one plain sentence.
