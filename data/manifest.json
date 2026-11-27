@@ -2,14 +2,14 @@
  "filterVersion": "blackbox-filter-v2",
  "source": {
   "name": "ledger.jsonl",
-  "linesRead": 29994,
-  "bytesRead": 8129566,
-  "sha256": "98a49d7c7535fd34970d1a157e70ac9557bcfdc584260f01328919cfa7323103",
+  "linesRead": 29996,
+  "bytesRead": 8129913,
+  "sha256": "06b432e63b7a779e6e71d0ad5b474fdcf4eb41baaa1cd6d9e559ed663a6230b3",
   "note": "sha256 of the first linesRead complete lines of the source ledger, newlines included"
  },
- "records": 11346,
+ "records": 11348,
  "firstT": "2026-10-26T13:23:26.146Z",
- "lastT": "2026-11-27T22:28:21.941Z",
+ "lastT": "2026-11-27T22:38:07.123Z",
  "txRecords": 348,
  "dropped": 18648,
  "droppedByReason": {
@@ -26,7 +26,7 @@
   "money": 1123,
   "paper": 442,
   "refusal": 303,
-  "sim": 8021,
+  "sim": 8023,
   "unclassified": 67
  },
  "keptByEngineType": {
@@ -65,7 +65,7 @@
   "dreamdex|paper": 94,
   "fire|fire_refused": 14,
   "flock|flock_err": 6,
-  "flock|flock_sim": 7989,
+  "flock|flock_sim": 7991,
   "flock|flock_skip": 119,
   "flock|live": 275,
   "freecall|live": 1,
