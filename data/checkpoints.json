@@ -7,12 +7,12 @@
   "every": 256,
   "hourly": true
  },
- "records": 11348,
- "recordsSha256": "5dfbc85980d67a8e1099087997d7f508c5fedafcc023a4d0ec061a4407ce7f87",
+ "records": 11460,
+ "recordsSha256": "288c8ca15e3b569663c51298d885a8722afdb8f46b3a599e3e39d4aba54b1333",
  "final": {
-  "seq": 11348,
-  "t": "2026-11-27T22:38:07.123Z",
-  "head": "b4965604ef7cdf0405b1439f8d66a03d0a42ba7a7d43464826bcf858db0b1fe4"
+  "seq": 11460,
+  "t": "2026-11-28T06:28:51.349Z",
+  "head": "6eeaae23d58e86ca5039eeb2e08b2ec89ca137f747c00af37307e7b07c7d0167"
  },
  "checkpoints": [
   {
@@ -4909,6 +4909,54 @@
    "seq": 11339,
    "t": "2026-11-27T21:58:02.166Z",
    "head": "b651ea4e5f75f9ac8062dff83fc6c69f3278275ab30cda1085baadd415646ebb",
+   "why": "hour"
+  },
+  {
+   "seq": 11356,
+   "t": "2026-11-27T22:59:34.904Z",
+   "head": "9821f9fb89fca7e87a7af93c66cd2e0bbddb92ed80a8e1e89debf0a73f32d122",
+   "why": "hour"
+  },
+  {
+   "seq": 11371,
+   "t": "2026-11-27T23:58:14.766Z",
+   "head": "954aabba0094c103b04d665372ae14bbcaff7d54dc365597b5346cf0cd97e813",
+   "why": "hour"
+  },
+  {
+   "seq": 11387,
+   "t": "2026-11-28T00:58:20.595Z",
+   "head": "5ee1a2dfd0c92a10fd8bd04fa316ff6d164f5c25152aabe3f39075bb3e1f37fd",
+   "why": "hour"
+  },
+  {
+   "seq": 11399,
+   "t": "2026-11-28T01:58:26.396Z",
+   "head": "ffe556341ea86c20d899783aecb88876f7303b080337614ffb2fa041c25f6b78",
+   "why": "hour"
+  },
+  {
+   "seq": 11412,
+   "t": "2026-11-28T02:58:31.830Z",
+   "head": "6b1c817214364344ed63a1906d9f15c51764b7bf03e86a6509b137076117fd48",
+   "why": "hour"
+  },
+  {
+   "seq": 11426,
+   "t": "2026-11-28T03:58:37.805Z",
+   "head": "c886cc35228e959b6828be0520de8332259b4a0c24a1b01b51bf8f683c51544c",
+   "why": "hour"
+  },
+  {
+   "seq": 11440,
+   "t": "2026-11-28T04:58:42.926Z",
+   "head": "6e677953ec1856d85c213115bf5879afbe28723f8abe7b2378bf5768328c2f24",
+   "why": "hour"
+  },
+  {
+   "seq": 11452,
+   "t": "2026-11-28T05:58:48.510Z",
+   "head": "7fa1241fe3afa036580d6a3c12544521d85cb59fe6af517debc1867658da552d",
    "why": "hour"
   }
  ]
